@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: kspdb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kspdb
+      POSTGRES_USER: kspdb
+      POSTGRES_PASSWORD: kspdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kspdb -d kspdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: node:22-alpine
+    container_name: kspdb-backend
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && node index.js"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://kspdb:kspdb@db:5432/kspdb
+      NODE_ENV: development
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    container_name: kspdb-frontend
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
