@@ -9,6 +9,18 @@ function MapController({ center, selectedTicketId }) {
   const prevTicketIdRef = useRef(null);
 
   useEffect(() => {
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+    const timer = setTimeout(handleResize, 150);
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [map]);
+
+  useEffect(() => {
     if (selectedTicketId && selectedTicketId !== prevTicketIdRef.current) {
       prevTicketIdRef.current = selectedTicketId;
       if (center && Array.isArray(center) && center.length === 2) {
@@ -151,7 +163,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
 
         {/* 5,000 Grid Poles Infrastructure Layer */}
         {showGridPoles
-          ? gridPoles.map((pole) => (
+          ? gridPoles.slice(0, 250).map((pole) => (
               <CircleMarker
                 key={`grid-pole-${pole.id}`}
                 center={[Number(pole.latitude), Number(pole.longitude)]}

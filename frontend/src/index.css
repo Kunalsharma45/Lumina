@@ -1,1 +1,9 @@
 @import 'tailwindcss';
+
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 500px !important;
+  background-color: #0f172a !important;
+  border-radius: 24px;
+}
