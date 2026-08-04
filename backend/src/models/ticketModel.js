@@ -7,9 +7,18 @@ function buildTicketNumber() {
 async function listTickets() {
   const { rows } = await query(
     `
-      SELECT *
-      FROM tickets
-      ORDER BY created_at DESC
+      SELECT
+        t.*,
+        p_live.latitude AS last_live_lat,
+        p_live.longitude AS last_live_lng,
+        p_live.pole_code AS last_live_pole_code,
+        p_dark.latitude AS first_dark_lat,
+        p_dark.longitude AS first_dark_lng,
+        p_dark.pole_code AS first_dark_pole_code
+      FROM tickets t
+      LEFT JOIN poles p_live ON p_live.id = t.last_live_pole_id
+      LEFT JOIN poles p_dark ON p_dark.id = t.first_dark_pole_id
+      ORDER BY t.created_at DESC
     `,
   )
 
@@ -17,7 +26,23 @@ async function listTickets() {
 }
 
 async function getTicketById(ticketId) {
-  const { rows } = await query('SELECT * FROM tickets WHERE id = $1', [ticketId])
+  const { rows } = await query(
+    `
+      SELECT
+        t.*,
+        p_live.latitude AS last_live_lat,
+        p_live.longitude AS last_live_lng,
+        p_live.pole_code AS last_live_pole_code,
+        p_dark.latitude AS first_dark_lat,
+        p_dark.longitude AS first_dark_lng,
+        p_dark.pole_code AS first_dark_pole_code
+      FROM tickets t
+      LEFT JOIN poles p_live ON p_live.id = t.last_live_pole_id
+      LEFT JOIN poles p_dark ON p_dark.id = t.first_dark_pole_id
+      WHERE t.id = $1
+    `,
+    [ticketId],
+  )
   return rows[0] || null
 }
 
