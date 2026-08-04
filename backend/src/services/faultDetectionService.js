@@ -53,12 +53,24 @@ function isDeadSensorCandidate(orderedPoles, stateByPoleId, index) {
     return false
   }
 
-  const prevPole = orderedPoles[index - 1]
-  const nextPole = orderedPoles[index + 1]
-  const prevLive = prevPole ? stateByPoleId.get(String(prevPole.id)) === true : false
-  const nextLive = nextPole ? stateByPoleId.get(String(nextPole.id)) === true : false
+  // 1. Find true topological parent
+  const parentPole = pole.parent_pole_id
+    ? orderedPoles.find((p) => String(p.id) === String(pole.parent_pole_id))
+    : orderedPoles[index - 1]
+  const parentLive = parentPole ? stateByPoleId.get(String(parentPole.id)) === true : false
 
-  return prevLive && nextLive
+  // 2. Find true topological children
+  const childrenPoles = orderedPoles.filter((p) => String(p.parent_pole_id) === String(pole.id))
+  if (childrenPoles.length === 0) {
+    const nextPole = orderedPoles[index + 1]
+    if (!nextPole) return false
+    return parentLive && stateByPoleId.get(String(nextPole.id)) === true
+  }
+
+  // 3. Are ALL true children still live?
+  const allChildrenLive = childrenPoles.every((child) => stateByPoleId.get(String(child.id)) === true)
+
+  return parentLive && allChildrenLive
 }
 
 function buildConfidence(darkRunLength, totalAffected, topologyInferred) {
@@ -70,6 +82,9 @@ function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], obser
   if (!poles.length) {
     return []
   }
+
+  const FIFTEEN_MINUTES_MS = 15 * 60 * 1000
+  const NETWORK_BUFFER_MS = 2 * 60 * 1000 // 2 minute grace period for clock skew
 
   const latestTelemetryByPole = getLatestTelemetryPerPole(telemetry)
   const orderedPoles = [...poles].sort((left, right) => {
@@ -85,7 +100,22 @@ function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], obser
   const stateByPoleId = new Map()
   for (const pole of orderedPoles) {
     const telemetryRecord = latestTelemetryByPole.get(String(pole.id))
-    const energized = telemetryRecord ? Boolean(telemetryRecord.energized) : true
+    let energized = true
+
+    if (telemetryRecord) {
+      energized = Boolean(telemetryRecord.energized)
+
+      // Silent Death Check: If device claims live, verify it hasn't timed out past 15 min heartbeat window
+      if (energized === true) {
+        const lastReportTime = new Date(telemetryRecord.reported_at || telemetryRecord.reportedAt || 0).getTime()
+        if (lastReportTime > 0) {
+          const timeSinceLastMessage = observedAt - lastReportTime
+          if (timeSinceLastMessage > FIFTEEN_MINUTES_MS + NETWORK_BUFFER_MS) {
+            energized = false // SILENT DEATH DETECTED - Capacitor / Firmware 1.2 failure!
+          }
+        }
+      }
+    }
     stateByPoleId.set(String(pole.id), energized)
   }
 
