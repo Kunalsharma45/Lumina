@@ -142,27 +142,106 @@ async function createSyntheticTreeRecord(client, {
 
 async function seedSyntheticGrid(req, res, next) {
   try {
-    const {
-      name = 'Synthetic Line',
-      code = `SIM-${Date.now()}`,
-      pin_code = '560001',
-      latitude = 12.9716,
-      longitude = 77.5946,
-      poleCount = 8,
-    } = req.body || {}
+    await query('TRUNCATE ticket_events, tickets, scheduled_outages, telemetry, poles, transformers, feeders, substations RESTART IDENTITY CASCADE;')
 
-    const scenario = await transaction((client) => createSyntheticTreeRecord(client, {
-      name,
-      code,
-      pinCode: pin_code,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      poleCount: Number(poleCount),
-    }))
+    const baseLat = 12.9716
+    const baseLng = 77.5946
+    const substations = []
+
+    for (let i = 1; i <= 4; i++) {
+      const { rows } = await query(
+        `INSERT INTO substations (name, code, pin_code, latitude, longitude)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [`Substation-${i}`, `SS-${i}`, `56000${i}`, baseLat + (i * 0.02), baseLng + (i * 0.02)]
+      )
+      substations.push(rows[0])
+    }
+
+    const feeders = []
+    for (let i = 0; i < 20; i++) {
+      const ss = substations[i % substations.length]
+      const { rows } = await query(
+        `INSERT INTO feeders (substation_id, name, code)
+         VALUES ($1, $2, $3) RETURNING *`,
+        [ss.id, `Feeder-F${i + 1}`, `F${i + 1}`]
+      )
+      feeders.push(rows[0])
+    }
+
+    const transformers = []
+    for (let i = 0; i < 100; i++) {
+      const feeder = feeders[i % feeders.length]
+      const isMissingTopology = i >= 40
+      const dtLat = baseLat + (Math.floor(i / 10) * 0.005)
+      const dtLng = baseLng + ((i % 10) * 0.005)
+
+      const { rows } = await query(
+        `INSERT INTO transformers (feeder_id, name, code, pin_code, latitude, longitude, seq_on_line, parent_pole_id, topology_inferred)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [
+          feeder.id,
+          `DT-${feeder.code}-${i + 1}`,
+          `DT-${feeder.code}-${i + 1}`,
+          `5600${10 + (i % 80)}`,
+          dtLat,
+          dtLng,
+          isMissingTopology ? null : 1,
+          null,
+          isMissingTopology
+        ]
+      )
+      transformers.push(rows[0])
+    }
+
+    const poleValues = []
+    for (let tIdx = 0; tIdx < transformers.length; tIdx++) {
+      const dt = transformers[tIdx]
+      const isMissingTopology = dt.topology_inferred
+
+      for (let pSeq = 1; pSeq <= 50; pSeq++) {
+        const pLat = dt.latitude + (pSeq * 0.0002)
+        const pLng = dt.longitude + (pSeq * 0.0002)
+        const code = `P-${dt.code}-${String(pSeq).padStart(3, '0')}`
+
+        poleValues.push({
+          transformer_id: dt.id,
+          pole_code: code,
+          pin_code: dt.pin_code,
+          latitude: pLat,
+          longitude: pLng,
+          seq_on_line: isMissingTopology ? null : pSeq,
+          parent_pole_id: null
+        })
+      }
+    }
+
+    const chunkSize = 500
+    const insertedPoles = []
+
+    for (let i = 0; i < poleValues.length; i += chunkSize) {
+      const chunk = poleValues.slice(i, i + chunkSize)
+      const valueTuples = []
+      const params = []
+      let paramIdx = 1
+
+      for (const p of chunk) {
+        valueTuples.push(`($${paramIdx}, $${paramIdx+1}, $${paramIdx+2}, $${paramIdx+3}, $${paramIdx+4}, $${paramIdx+5}, $${paramIdx+6})`)
+        params.push(p.transformer_id, p.pole_code, p.pin_code, p.latitude, p.longitude, p.seq_on_line, p.parent_pole_id)
+        paramIdx += 7
+      }
+
+      const { rows } = await query(
+        `INSERT INTO poles (transformer_id, pole_code, pin_code, latitude, longitude, seq_on_line, parent_pole_id)
+         VALUES ${valueTuples.join(', ')} RETURNING id, transformer_id, pole_code, seq_on_line`,
+        params
+      )
+      insertedPoles.push(...rows)
+    }
 
     res.status(201).json({
-      message: 'Synthetic grid seeded',
-      scenario,
+      message: 'Synthetic grid seeded with 5,000 poles across 100 transformers',
+      total_poles: insertedPoles.length,
+      transformers: transformers.length,
     })
   } catch (error) {
     next(error)
