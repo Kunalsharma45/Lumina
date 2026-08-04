@@ -4,7 +4,7 @@ import { getPoles } from "../api/apiClient";
 
 const defaultCenter = [12.9716, 77.5946];
 
-function MapController({ center, selectedTicketId }) {
+function MapController({ center, selectedTicketId, ticketsCount }) {
   const map = useMap();
   const prevTicketIdRef = useRef(null);
 
@@ -12,18 +12,24 @@ function MapController({ center, selectedTicketId }) {
     const handleResize = () => {
       map.invalidateSize();
     };
-    const timer = setTimeout(handleResize, 150);
+
+    // Immediate & dual-delayed invalidateSize to fix flexbox bounds & canvas sizing
+    handleResize();
+    const timer1 = setTimeout(handleResize, 100);
+    const timer2 = setTimeout(handleResize, 350);
+
     window.addEventListener("resize", handleResize);
     return () => {
-      clearTimeout(timer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
       window.removeEventListener("resize", handleResize);
     };
-  }, [map]);
+  }, [map, ticketsCount]);
 
   useEffect(() => {
     if (selectedTicketId && selectedTicketId !== prevTicketIdRef.current) {
       prevTicketIdRef.current = selectedTicketId;
-      if (center && Array.isArray(center) && center.length === 2) {
+      if (center && Array.isArray(center) && center.length === 2 && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
         map.panTo(center, {
           animate: true,
           duration: 0.8,
@@ -147,15 +153,18 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
         ? [processedMapTickets[0].displayLat, processedMapTickets[0].displayLng]
         : defaultCenter;
 
+  const isValidCoord = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+
   return (
-    <div className="h-full min-h-160">
+    <div className="h-full w-full min-h-[550px] relative">
       <MapContainer
         center={center}
         zoom={13}
         preferCanvas={true}
-        className="h-full min-h-160 w-full overflow-hidden rounded-[28px]"
+        style={{ height: "100%", width: "100%", minHeight: "550px" }}
+        className="h-full w-full min-h-[550px] overflow-hidden rounded-[28px]"
       >
-        <MapController center={center} selectedTicketId={selectedTicket?.id} />
+        <MapController center={center} selectedTicketId={selectedTicket?.id} ticketsCount={tickets.length} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -200,31 +209,39 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
           const markerLat = Number(ticket.first_dark_lat || ticket.latitude || ticket.displayLat);
           const markerLng = Number(ticket.first_dark_lng || ticket.longitude || ticket.displayLng);
 
-          const polylinePositions = [
-            [liveLat, liveLng],
-            [darkLat, darkLng],
-          ];
+          const liveValid = isValidCoord(liveLat, liveLng);
+          const darkValid = isValidCoord(darkLat, darkLng);
+          const markerValid = isValidCoord(markerLat, markerLng);
+
+          const polylinePositions = liveValid && darkValid
+            ? [
+                [liveLat, liveLng],
+                [darkLat, darkLng],
+              ]
+            : null;
 
           return (
             <div key={`ticket-group-${ticket.id}`}>
               {/* Span Polyline connecting Live and Dark Pole */}
-              <Polyline
-                positions={polylinePositions}
-                eventHandlers={{
-                  click: () => onSelectTicket(ticket),
-                }}
-                pathOptions={{
-                  color: isSelected ? "#38bdf8" : isInferred ? "#f59e0b" : "#ef4444",
-                  weight: isSelected ? 8 : 5,
-                  dashArray: isInferred ? "8, 8" : null,
-                  opacity: isSelected ? 1 : 0.85,
-                }}
-              >
-                <MarkerContent ticket={ticket} />
-              </Polyline>
+              {polylinePositions ? (
+                <Polyline
+                  positions={polylinePositions}
+                  eventHandlers={{
+                    click: () => onSelectTicket(ticket),
+                  }}
+                  pathOptions={{
+                    color: isSelected ? "#38bdf8" : isInferred ? "#f59e0b" : "#ef4444",
+                    weight: isSelected ? 8 : 5,
+                    dashArray: isInferred ? "8, 8" : null,
+                    opacity: isSelected ? 1 : 0.85,
+                  }}
+                >
+                  <MarkerContent ticket={ticket} />
+                </Polyline>
+              ) : null}
 
               {/* Glowing casing line for selected ticket */}
-              {isSelected ? (
+              {isSelected && polylinePositions ? (
                 <Polyline
                   positions={polylinePositions}
                   pathOptions={{
@@ -236,14 +253,16 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
               ) : null}
 
               {/* Boundary Position Marker strictly placed on exact Dark Pole GPS */}
-              <Marker
-                position={[markerLat, markerLng]}
-                eventHandlers={{
-                  click: () => onSelectTicket(ticket),
-                }}
-              >
-                <MarkerContent ticket={ticket} />
-              </Marker>
+              {markerValid ? (
+                <Marker
+                  position={[markerLat, markerLng]}
+                  eventHandlers={{
+                    click: () => onSelectTicket(ticket),
+                  }}
+                >
+                  <MarkerContent ticket={ticket} />
+                </Marker>
+              ) : null}
             </div>
           );
         })}
