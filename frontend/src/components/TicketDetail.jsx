@@ -2,6 +2,7 @@ import {
   acknowledgeTicket,
   assignTicket,
   closeTicket,
+  repairFault,
   resolveTicket,
   verifyTicket,
 } from "../api/apiClient";
@@ -36,12 +37,18 @@ export default function TicketDetail({
         await resolveTicket(ticket.id);
       } else if (action === "verify") {
         await verifyTicket(ticket.id);
+      } else if (action === "repair") {
+        await repairFault(ticket.id);
       } else if (action === "close") {
         await closeTicket(ticket.id);
       }
 
       await onRefresh();
-      onMessage("Action completed successfully");
+      onMessage(
+        action === "repair"
+          ? "⚡ Crew repair telemetry received: Power restored and ticket auto-verified!"
+          : "Action completed successfully"
+      );
     } catch (error) {
       onMessage(error.message || "Action failed");
     } finally {
@@ -133,29 +140,29 @@ export default function TicketDetail({
           <button
             type="button"
             disabled={busy || isVerified}
-            onClick={() => runAction("resolve")}
+            onClick={() => runAction("repair")}
             className={`rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${
               status === "CREW_ASSIGNED"
-                ? "bg-amber-500/25 text-amber-100 border-amber-400/40 shadow-[0_0_15px_rgba(251,191,36,0.25)] hover:bg-amber-500/35"
+                ? "bg-emerald-500/30 text-emerald-100 border-emerald-400/50 shadow-[0_0_18px_rgba(52,211,153,0.3)] hover:bg-emerald-500/40"
                 : isVerified
                 ? "bg-slate-800/50 text-slate-400 border-slate-700"
-                : "bg-amber-500/15 text-amber-200 border-amber-400/20"
+                : "bg-emerald-500/15 text-emerald-200 border-emerald-400/20"
             }`}
           >
-            Mark Resolved
+            {isVerified ? "✓ Telemetry Power Restored" : "⚡ Repair & Send Restored Telemetry"}
           </button>
 
           <button
             type="button"
-            disabled={busy || isClosed}
-            onClick={() => runAction("verify")}
+            disabled={busy || isVerified}
+            onClick={() => runAction("resolve")}
             className={`rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${
-              status === "VERIFIED"
-                ? "bg-emerald-500/25 text-emerald-100 border-emerald-400/40 shadow-[0_0_15px_rgba(52,211,153,0.25)]"
-                : "bg-emerald-500/15 text-emerald-200 border-emerald-400/20"
+              isVerified
+                ? "bg-slate-800/50 text-slate-400 border-slate-700"
+                : "bg-amber-500/15 text-amber-200 border-amber-400/20 hover:bg-amber-500/25"
             }`}
           >
-            {isVerified ? "✓ Verified" : "Verify"}
+            Mark Resolved
           </button>
 
           <button
@@ -164,10 +171,10 @@ export default function TicketDetail({
             onClick={() => runAction("close")}
             className={`rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${
               status === "VERIFIED"
-                ? "bg-emerald-500/30 text-white border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)] hover:bg-emerald-500/40"
+                ? "bg-emerald-500/35 text-white border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.35)] hover:bg-emerald-500/45"
                 : isClosed
                 ? "bg-slate-800/50 text-slate-400 border-slate-700"
-                : "bg-slate-500/15 text-slate-300 border-slate-400/20"
+                : "bg-slate-500/15 text-slate-400 border-slate-700"
             }`}
           >
             {isClosed ? "✓ Closed" : "Close Ticket"}

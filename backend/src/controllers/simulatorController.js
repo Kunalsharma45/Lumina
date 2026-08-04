@@ -291,9 +291,55 @@ async function createScenario(req, res, next) {
   }
 }
 
+async function repairFault(req, res, next) {
+  try {
+    const { ticket_id } = req.body || {}
+    const ticketModel = require('../models/ticketModel')
+    const poleModel = require('../models/poleModel')
+
+    const ticket = await ticketModel.getTicketById(ticket_id)
+    if (!ticket) {
+      return res.status(404).json({ message: 'Ticket not found' })
+    }
+
+    const downstreamPoles = await poleModel.findDownstreamPolesFromBoundary(ticket.first_dark_pole_id)
+    if (!downstreamPoles.length) {
+      return res.status(400).json({ message: 'No downstream poles found for this ticket boundary' })
+    }
+
+    const restorationMessages = downstreamPoles.map((pole) => ({
+      device_id: `dev-${pole.id}`,
+      pole_id: Number(pole.id),
+      seq: Date.now(),
+      energized: true,
+      reported_at: new Date().toISOString(),
+      raw_payload: { event: 'power_restored', energized: true },
+    }))
+
+    await bulkUpsertTelemetry(restorationMessages)
+
+    const updatedTicket = await ticketModel.updateTicket(ticket.id, {
+      status: 'VERIFIED',
+      verified_at: new Date(),
+      updated_at: new Date(),
+    })
+
+    await ticketModel.addTicketEvent(ticket.id, 'VERIFIED', 'Power restored telemetry received from field crew repair')
+
+    res.status(200).json({
+      message: 'Repair telemetry injected and ticket auto-verified',
+      ticket: updatedTicket,
+      restoredPolesCount: downstreamPoles.length,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createMockOutage,
   createScenario,
   injectFault,
+  repairFault,
   seedSyntheticGrid,
 }

@@ -60,12 +60,12 @@ async function resolveTicket(req, res, next) {
 
     const downstreamPoles = await poleModel.findDownstreamPolesFromBoundary(ticket.first_dark_pole_id)
     const latestTelemetry = await telemetryModel.getLatestTelemetryByPoleIds(downstreamPoles.map((pole) => pole.id))
-    const telemetryByPoleId = new Map(latestTelemetry.map((record) => [record.pole_id, record]))
-    const allLive = downstreamPoles.every((pole) => telemetryByPoleId.get(pole.id)?.energized === true)
+    const telemetryByPoleId = new Map(latestTelemetry.map((record) => [String(record.pole_id), record]))
+    const allLive = downstreamPoles.every((pole) => telemetryByPoleId.get(String(pole.id))?.energized === true)
 
     if (!allLive) {
       return res.status(409).json({
-        message: 'Resolution rejected until telemetry confirms all affected poles are live',
+        message: 'Resolution rejected: backend telemetry confirms affected poles are still dark',
         ticket,
       })
     }
@@ -95,11 +95,11 @@ async function verifyTicket(req, res, next) {
 
     const downstreamPoles = await poleModel.findDownstreamPolesFromBoundary(ticket.first_dark_pole_id)
     const latestTelemetry = await telemetryModel.getLatestTelemetryByPoleIds(downstreamPoles.map((pole) => pole.id))
-    const telemetryByPoleId = new Map(latestTelemetry.map((record) => [record.pole_id, record]))
-    const allLive = downstreamPoles.every((pole) => telemetryByPoleId.get(pole.id)?.energized === true)
+    const telemetryByPoleId = new Map(latestTelemetry.map((record) => [String(record.pole_id), record]))
+    const allLive = downstreamPoles.every((pole) => telemetryByPoleId.get(String(pole.id))?.energized === true)
 
     if (!allLive) {
-      return res.status(409).json({ message: 'Verification failed: poles are still dark', ticket })
+      return res.status(409).json({ message: 'Verification failed: telemetry confirms poles are still dark', ticket })
     }
 
     const updatedTicket = await ticketModel.updateTicket(ticket.id, {

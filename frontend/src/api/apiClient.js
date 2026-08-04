@@ -99,6 +99,13 @@ export function createScenario(payload) {
   })
 }
 
+export function repairFault(ticketId) {
+  return apiFetch('/api/simulator/repair-fault', {
+    method: 'POST',
+    body: JSON.stringify({ ticket_id: ticketId }),
+  })
+}
+
 export function getScheduledOutages() {
   return apiFetch('/api/simulator/outages')
 }
