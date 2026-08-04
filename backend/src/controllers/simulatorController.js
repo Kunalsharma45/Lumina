@@ -280,18 +280,23 @@ async function seedSyntheticGrid(req, res, next) {
 }
 
 async function generateTelemetryForTree(poles, breakAfterSeq) {
-  const messages = poles.map((pole) => ({
-    device_id: `dev-${pole.id}`,
-    pole_id: pole.id,
-    seq: pole.seq_on_line,
-    energized: pole.seq_on_line < breakAfterSeq,
-    reported_at: new Date().toISOString(),
-    raw_payload: {
+  const messages = poles.map((pole, idx) => {
+    const seqVal = pole.seq_on_line != null ? pole.seq_on_line : (idx + 1)
+    const isEnergized = seqVal <= breakAfterSeq
+
+    return {
+      device_id: `dev-${pole.id}`,
       pole_id: pole.id,
-      seq: pole.seq_on_line,
-      energized: pole.seq_on_line < breakAfterSeq,
-    },
-  }))
+      seq: seqVal,
+      energized: isEnergized,
+      reported_at: new Date().toISOString(),
+      raw_payload: {
+        pole_id: pole.id,
+        seq: seqVal,
+        energized: isEnergized,
+      },
+    }
+  })
 
   return bulkUpsertTelemetry(messages)
 }
