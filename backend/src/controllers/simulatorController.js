@@ -305,8 +305,26 @@ async function injectFault(req, res, next) {
     } = req.body || {}
 
     if (!transformer_id) {
-      const { rows: defaultDts } = await query(`SELECT id FROM transformers ORDER BY id LIMIT 1`)
-      transformer_id = defaultDts[0]?.id
+      const { rows: availableDts } = await query(
+        `
+          SELECT t.id
+          FROM transformers t
+          WHERE t.id NOT IN (
+            SELECT DISTINCT p.transformer_id
+            FROM tickets tk
+            JOIN poles p ON p.id = tk.first_dark_pole_id
+            WHERE tk.status <> 'CLOSED'
+          )
+          ORDER BY RANDOM()
+          LIMIT 1
+        `
+      )
+      transformer_id = availableDts[0]?.id || null
+
+      if (!transformer_id) {
+        const { rows: randomDts } = await query(`SELECT id FROM transformers ORDER BY RANDOM() LIMIT 1`)
+        transformer_id = randomDts[0]?.id
+      }
     }
 
     if (!transformer_id) {
