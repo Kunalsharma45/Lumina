@@ -329,11 +329,29 @@ async function injectFault(req, res, next) {
 
     const insertedTelemetry = await generateTelemetryForTree(poleRows, Number(break_after_seq))
 
+    const { detectFaults } = require('../services/faultDetectionService')
+    const { inferPoleTopology } = require('../services/graphBuilderService')
+    const ticketModel = require('../models/ticketModel')
+
+    const { rows: dtRows } = await query(`SELECT * FROM transformers WHERE id = $1`, [transformer_id])
+    const transformer = dtRows[0] || null
+
+    const orderedPoles = poleRows.some((p) => p.seq_on_line == null)
+      ? inferPoleTopology(poleRows, transformer)
+      : poleRows
+
+    const faults = detectFaults({ poles: orderedPoles, telemetry: insertedTelemetry, transformer })
+    let createdTicket = null
+    if (faults.length > 0) {
+      createdTicket = await ticketModel.createDetectedTicket(faults[0], reason)
+    }
+
     res.status(201).json({
       message: reason,
       transformer_id,
       break_after_seq: Number(break_after_seq),
       telemetry: insertedTelemetry,
+      ticket: createdTicket,
     })
   } catch (error) {
     next(error)
@@ -400,10 +418,26 @@ async function createScenario(req, res, next) {
         })),
       )
 
+      const { detectFaults } = require('../services/faultDetectionService')
+      const { inferPoleTopology } = require('../services/graphBuilderService')
+      const ticketModel = require('../models/ticketModel')
+
+      const orderedPoles = created.poles.some((p) => p.seq_on_line == null)
+        ? inferPoleTopology(created.poles, created.transformer)
+        : created.poles
+
+      const faults = detectFaults({ poles: orderedPoles, telemetry, transformer: created.transformer })
+      const createdTickets = []
+      for (const fault of faults) {
+        const ticket = await ticketModel.createDetectedTicket(fault, name)
+        createdTickets.push(ticket)
+      }
+
       return {
         ...created,
         telemetry,
         break_after_seq: Number(break_after_seq),
+        tickets: createdTickets,
       }
     })
 
