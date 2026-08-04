@@ -103,7 +103,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
   const [totalPolesCount, setTotalPolesCount] = useState(5048);
 
   useEffect(() => {
-    getPoles(10000)
+    getPoles(800)
       .then((res) => {
         if (res && res.poles) {
           setGridPoles(res.poles);
@@ -130,7 +130,6 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
     const count = posCountMap.get(posKey) || 0;
     posCountMap.set(posKey, count + 1);
 
-    // Apply a micro-offset if identical coordinates exist so overlapping ticket markers are individually visible
     const offsetLat = count > 0 ? baseLat + (count % 2 === 1 ? 0.0003 : -0.0003) * Math.ceil(count / 2) : baseLat;
     const offsetLng = count > 0 ? baseLng + (count % 2 === 1 ? -0.0003 : 0.0003) * Math.ceil(count / 2) : baseLng;
 
@@ -158,13 +157,15 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
       >
         <MapController center={center} selectedTicketId={selectedTicket?.id} />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={19}
         />
 
-        {/* 10,000 Grid Poles Infrastructure Layer (Canvas Accelerated) */}
+        {/* Grid Poles Infrastructure Layer (Canvas Accelerated) */}
         {showGridPoles
-          ? gridPoles.slice(0, 2000).map((pole) => (
+          ? gridPoles.slice(0, 800).map((pole) => (
               <CircleMarker
                 key={`grid-pole-${pole.id}`}
                 center={[Number(pole.latitude), Number(pole.longitude)]}
