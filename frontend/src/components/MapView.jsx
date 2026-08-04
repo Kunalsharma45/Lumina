@@ -153,6 +153,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
       <MapContainer
         center={center}
         zoom={13}
+        preferCanvas={true}
         className="h-full min-h-160 w-full overflow-hidden rounded-[28px]"
       >
         <MapController center={center} selectedTicketId={selectedTicket?.id} />
@@ -161,9 +162,9 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* 5,000 Grid Poles Infrastructure Layer */}
+        {/* 10,000 Grid Poles Infrastructure Layer (Canvas Accelerated) */}
         {showGridPoles
-          ? gridPoles.slice(0, 250).map((pole) => (
+          ? gridPoles.slice(0, 2000).map((pole) => (
               <CircleMarker
                 key={`grid-pole-${pole.id}`}
                 center={[Number(pole.latitude), Number(pole.longitude)]}
@@ -171,7 +172,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                 pathOptions={{
                   color: "#0284c7",
                   fillColor: "#38bdf8",
-                  fillOpacity: 0.8,
+                  fillOpacity: 0.85,
                   weight: 1,
                 }}
               >
