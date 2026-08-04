@@ -7,10 +7,24 @@ export function useTickets(pollIntervalMs = 5000) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const refreshTickets = async () => {
+    try {
+      setError('')
+      const response = await getTickets()
+      setTickets(response.tickets || [])
+      setLoading(false)
+      return response
+    } catch (requestError) {
+      setError(requestError.message || 'Failed to load tickets')
+      setLoading(false)
+      throw requestError
+    }
+  }
+
   useEffect(() => {
     let mounted = true
 
-    async function refreshTickets() {
+    async function initialFetch() {
       try {
         setError('')
         const response = await getTickets()
@@ -26,8 +40,8 @@ export function useTickets(pollIntervalMs = 5000) {
       }
     }
 
-    refreshTickets()
-    const intervalId = window.setInterval(refreshTickets, pollIntervalMs)
+    initialFetch()
+    const intervalId = window.setInterval(initialFetch, pollIntervalMs)
 
     return () => {
       mounted = false
@@ -35,5 +49,5 @@ export function useTickets(pollIntervalMs = 5000) {
     }
   }, [pollIntervalMs])
 
-  return { error, loading, tickets, refresh: getTickets }
+  return { error, loading, tickets, refresh: refreshTickets }
 }

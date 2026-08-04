@@ -38,7 +38,7 @@ export default function TicketList({
             key={ticket.id}
             type="button"
             onClick={() => onSelectTicket(ticket)}
-            className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/7 ${selectedTicketId === ticket.id ? "border-cyan-300/40 bg-cyan-500/10 shadow-[0_10px_40px_rgba(34,211,238,0.15)]" : "border-white/10 bg-white/5"}`}
+            className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/7 ${String(selectedTicketId) === String(ticket.id) ? "border-cyan-300/40 bg-cyan-500/10 shadow-[0_10px_40px_rgba(34,211,238,0.15)]" : "border-white/10 bg-white/5"}`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>

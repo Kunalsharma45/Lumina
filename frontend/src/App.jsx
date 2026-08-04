@@ -16,18 +16,21 @@ function App() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const handleSelectTicket = (target) => {
+    const targetId = target && typeof target === "object" ? target.id : target;
+    setSelectedTicketId(targetId);
+  };
+
   const selectedTicket = useMemo(
     () =>
-      tickets.find((ticket) => ticket.id === selectedTicketId) ||
+      tickets.find(
+        (ticket) =>
+          String(ticket.id) === String(selectedTicketId?.id || selectedTicketId),
+      ) ||
       tickets[0] ||
       null,
     [selectedTicketId, tickets],
   );
-
-  async function refreshTickets() {
-    const response = await getTickets();
-    return response;
-  }
 
   return (
     <Layout
@@ -51,13 +54,11 @@ function App() {
           <TicketList
             tickets={tickets}
             selectedTicketId={selectedTicket?.id}
-            onSelectTicket={setSelectedTicketId}
+            onSelectTicket={handleSelectTicket}
           />
           <SimulatorPanel
             onMessage={setMessage}
-            onRefresh={async () => {
-              await refreshTickets();
-            }}
+            onRefresh={refresh}
           />
         </>
       }
@@ -68,15 +69,13 @@ function App() {
             <MapView
               tickets={tickets}
               selectedTicket={selectedTicket}
-              onSelectTicket={setSelectedTicketId}
+              onSelectTicket={handleSelectTicket}
             />
           </div>
           <div className="border-l border-white/10">
             <TicketDetail
               ticket={selectedTicket}
-              onRefresh={async () => {
-                await refreshTickets();
-              }}
+              onRefresh={refresh}
               onMessage={setMessage}
               busy={busy}
               setBusy={setBusy}
