@@ -1,6 +1,22 @@
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 
 const defaultCenter = [12.9716, 77.5946];
+
+function MapController({ center }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (center && Array.isArray(center) && center.length === 2) {
+      map.flyTo(center, 14, {
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
+    }
+  }, [center, map]);
+
+  return null;
+}
 
 function MarkerContent({ ticket }) {
   return (
@@ -37,6 +53,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
         zoom={13}
         className="h-full min-h-160 w-full overflow-hidden rounded-[28px]"
       >
+        <MapController center={center} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
