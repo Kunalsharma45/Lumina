@@ -197,10 +197,11 @@ async function seedSyntheticGrid(req, res, next) {
     for (let tIdx = 0; tIdx < transformers.length; tIdx++) {
       const dt = transformers[tIdx]
       const isMissingTopology = dt.topology_inferred
+      const angle = (tIdx * 36) * (Math.PI / 180) // Radial angle distribution per feeder branch
 
       for (let pSeq = 1; pSeq <= 50; pSeq++) {
-        const pLat = dt.latitude + (pSeq * 0.0002)
-        const pLng = dt.longitude + (pSeq * 0.0002)
+        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00012)
+        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00012)
         const code = `P-${dt.code}-${String(pSeq).padStart(3, '0')}`
 
         poleValues.push({
@@ -236,6 +237,35 @@ async function seedSyntheticGrid(req, res, next) {
         params
       )
       insertedPoles.push(...rows)
+    }
+
+    // Insert initial live telemetry for seeded poles
+    const telemetryRecords = insertedPoles.map((p) => ({
+      device_id: `dev-${p.id}`,
+      pole_id: p.id,
+      seq: 100,
+      energized: true,
+      reported_at: new Date().toISOString(),
+    }))
+
+    for (let i = 0; i < telemetryRecords.length; i += chunkSize) {
+      const chunk = telemetryRecords.slice(i, i + chunkSize)
+      const valueTuples = []
+      const params = []
+      let paramIdx = 1
+
+      for (const t of chunk) {
+        valueTuples.push(`($${paramIdx}, $${paramIdx+1}, $${paramIdx+2}, $${paramIdx+3}, $${paramIdx+4})`)
+        params.push(t.device_id, t.pole_id, t.seq, t.energized, t.reported_at)
+        paramIdx += 5
+      }
+
+      await query(
+        `INSERT INTO telemetry (device_id, pole_id, seq, energized, reported_at)
+         VALUES ${valueTuples.join(', ')}
+         ON CONFLICT (device_id, seq) DO NOTHING`,
+        params
+      )
     }
 
     res.status(201).json({
