@@ -26,6 +26,10 @@ export function getTickets() {
   return apiFetch('/api/tickets')
 }
 
+export function getPoles(limit = 1000) {
+  return apiFetch(`/api/poles?limit=${limit}`)
+}
+
 export function getTicket(id) {
   return apiFetch(`/api/tickets/${id}`)
 }

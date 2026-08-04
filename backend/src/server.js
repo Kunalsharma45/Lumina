@@ -6,6 +6,7 @@ const cors = require('cors')
 const telemetryRoutes = require('./routes/telemetryRoutes')
 const ticketRoutes = require('./routes/ticketRoutes')
 const simulatorRoutes = require('./routes/simulatorRoutes')
+const poleRoutes = require('./routes/poleRoutes')
 
 function createApp() {
   const app = express()
@@ -21,6 +22,7 @@ function createApp() {
   app.use('/api/telemetry', telemetryRoutes)
   app.use('/api/tickets', ticketRoutes)
   app.use('/api/simulator', simulatorRoutes)
+  app.use('/api/poles', poleRoutes)
 
   app.use((error, req, res, next) => {
     console.error(error)

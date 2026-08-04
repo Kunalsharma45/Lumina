@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import { CircleMarker, MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
+import { getPoles } from "../api/apiClient";
 
 const defaultCenter = [12.9716, 77.5946];
 
@@ -85,6 +86,23 @@ function MarkerContent({ ticket }) {
 }
 
 export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
+  const [gridPoles, setGridPoles] = useState([]);
+  const [showGridPoles, setShowGridPoles] = useState(true);
+  const [totalPolesCount, setTotalPolesCount] = useState(5048);
+
+  useEffect(() => {
+    getPoles(1000)
+      .then((res) => {
+        if (res && res.poles) {
+          setGridPoles(res.poles);
+        }
+        if (res && res.total) {
+          setTotalPolesCount(res.total);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const mapTickets = tickets.filter(
     (ticket) =>
       Number.isFinite(Number(ticket.latitude)) &&
@@ -130,6 +148,31 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {/* 5,000 Grid Poles Infrastructure Layer */}
+        {showGridPoles
+          ? gridPoles.map((pole) => (
+              <CircleMarker
+                key={`grid-pole-${pole.id}`}
+                center={[Number(pole.latitude), Number(pole.longitude)]}
+                radius={3}
+                pathOptions={{
+                  color: "#0284c7",
+                  fillColor: "#38bdf8",
+                  fillOpacity: 0.8,
+                  weight: 1,
+                }}
+              >
+                <Popup autoPan={false}>
+                  <div className="p-1 text-xs font-sans text-slate-800">
+                    <p className="font-bold text-slate-900">{pole.pole_code}</p>
+                    <p className="text-[11px] text-slate-500">Transformer ID: {pole.transformer_id}</p>
+                    <p className="text-[11px] text-slate-500">Sequence: #{pole.seq_on_line || "MST Inferred"}</p>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            ))
+          : null}
 
         {processedMapTickets.map((ticket) => {
           const isSelected = selectedTicket?.id === ticket.id;

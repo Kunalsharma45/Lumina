@@ -44,8 +44,8 @@ function App() {
               Lumina Fault Localization Command Console
             </h1>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-            OpenStreetMap-powered live operations
+          <div className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 font-medium">
+            ⚡ 5,048 Monitored Grid Poles | OpenStreetMap Operations
           </div>
         </div>
       }
