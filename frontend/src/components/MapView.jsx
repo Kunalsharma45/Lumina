@@ -192,10 +192,13 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
           const isSelected = selectedTicket?.id === ticket.id;
           const isInferred = Boolean(ticket.topology_inferred);
 
-          const liveLat = Number(ticket.last_live_lat || ticket.displayLat);
-          const liveLng = Number(ticket.last_live_lng || ticket.displayLng);
-          const darkLat = Number(ticket.first_dark_lat || Number(ticket.displayLat) + 0.0003);
-          const darkLng = Number(ticket.first_dark_lng || Number(ticket.displayLng) + 0.0003);
+          const liveLat = Number(ticket.last_live_lat || ticket.latitude || ticket.displayLat);
+          const liveLng = Number(ticket.last_live_lng || ticket.longitude || ticket.displayLng);
+          const darkLat = Number(ticket.first_dark_lat || liveLat + 0.0001);
+          const darkLng = Number(ticket.first_dark_lng || liveLng + 0.0001);
+
+          const markerLat = Number(ticket.first_dark_lat || ticket.latitude || ticket.displayLat);
+          const markerLng = Number(ticket.first_dark_lng || ticket.longitude || ticket.displayLng);
 
           const polylinePositions = [
             [liveLat, liveLng],
@@ -232,9 +235,9 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                 />
               ) : null}
 
-              {/* Boundary Position Marker */}
+              {/* Boundary Position Marker strictly placed on exact Dark Pole GPS */}
               <Marker
-                position={[ticket.displayLat, ticket.displayLng]}
+                position={[markerLat, markerLng]}
                 eventHandlers={{
                   click: () => onSelectTicket(ticket),
                 }}
