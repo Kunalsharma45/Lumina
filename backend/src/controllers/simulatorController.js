@@ -406,67 +406,53 @@ async function createMockOutage(req, res, next) {
 
 async function createScenario(req, res, next) {
   try {
-    const {
-      name = 'Demo Scenario',
-      code = `SCN-${Date.now()}`,
-      pin_code = '560001',
-      latitude = 12.9716,
-      longitude = 77.5946,
-      poleCount = 8,
-      break_after_seq = 4,
-    } = req.body || {}
+    const { name = 'Simultaneous Monsoon Storm Outages' } = req.body || {}
 
-    const scenario = await transaction(async (client) => {
-      const created = await createSyntheticTreeRecord(client, {
-        name,
-        code,
-        pinCode: pin_code,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        poleCount: Number(poleCount),
-      })
+    const { rows: selectedDts } = await query(
+      `SELECT id FROM transformers ORDER BY RANDOM() LIMIT 2`
+    )
 
-      const telemetry = await bulkUpsertTelemetry(
-        created.poles.map((pole) => ({
-          device_id: `dev-${pole.id}`,
-          pole_id: pole.id,
-          seq: pole.seq_on_line,
-          energized: pole.seq_on_line < Number(break_after_seq),
-          reported_at: new Date().toISOString(),
-          raw_payload: {
-            pole_id: pole.id,
-            seq: pole.seq_on_line,
-            energized: pole.seq_on_line < Number(break_after_seq),
-          },
-        })),
+    if (selectedDts.length < 2) {
+      return res.status(400).json({ message: 'At least 2 transformers required in database' })
+    }
+
+    const { detectFaults } = require('../services/faultDetectionService')
+    const { inferPoleTopology } = require('../services/graphBuilderService')
+    const ticketModel = require('../models/ticketModel')
+
+    const createdTickets = []
+
+    for (let i = 0; i < selectedDts.length; i++) {
+      const dtId = selectedDts[i].id
+      const { rows: dtRows } = await query(`SELECT * FROM transformers WHERE id = $1`, [dtId])
+      const transformer = dtRows[0]
+
+      const { rows: poleRows } = await query(
+        `SELECT * FROM poles WHERE transformer_id = $1 ORDER BY seq_on_line, id`,
+        [dtId]
       )
 
-      const { detectFaults } = require('../services/faultDetectionService')
-      const { inferPoleTopology } = require('../services/graphBuilderService')
-      const ticketModel = require('../models/ticketModel')
+      if (!poleRows.length) continue
 
-      const orderedPoles = created.poles.some((p) => p.seq_on_line == null)
-        ? inferPoleTopology(created.poles, created.transformer)
-        : created.poles
+      const breakAfterSeq = Math.floor(Math.random() * 4) + 2
+      const insertedTelemetry = await generateTelemetryForTree(poleRows, breakAfterSeq)
 
-      const faults = detectFaults({ poles: orderedPoles, telemetry, transformer: created.transformer })
-      const createdTickets = []
-      for (const fault of faults) {
-        const ticket = await ticketModel.createDetectedTicket(fault, name)
+      const orderedPoles = poleRows.some((p) => p.seq_on_line == null)
+        ? inferPoleTopology(poleRows, transformer)
+        : poleRows
+
+      const faults = detectFaults({ poles: orderedPoles, telemetry: insertedTelemetry, transformer })
+
+      if (faults.length > 0) {
+        const ticket = await ticketModel.createDetectedTicket(faults[0], `${name} - ${transformer.code}`)
         createdTickets.push(ticket)
       }
-
-      return {
-        ...created,
-        telemetry,
-        break_after_seq: Number(break_after_seq),
-        tickets: createdTickets,
-      }
-    })
+    }
 
     res.status(201).json({
-      message: 'Synthetic scenario created',
-      scenario,
+      message: 'Simultaneous monsoon storm scenario created',
+      tickets_created: createdTickets.length,
+      tickets: createdTickets,
     })
   } catch (error) {
     next(error)
