@@ -103,7 +103,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
   const [totalPolesCount, setTotalPolesCount] = useState(5048);
 
   useEffect(() => {
-    getPoles(1000)
+    getPoles(10000)
       .then((res) => {
         if (res && res.poles) {
           setGridPoles(res.poles);
@@ -113,7 +113,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [tickets]);
 
   const mapTickets = tickets.filter(
     (ticket) =>
