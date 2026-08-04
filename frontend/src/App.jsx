@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import "leaflet/dist/leaflet.css";
 
-import { getTickets } from "./api/apiClient";
+import { getPoles, getTickets } from "./api/apiClient";
 import Layout from "./components/Layout";
 import MapView from "./components/MapView";
 import SimulatorPanel from "./components/SimulatorPanel";
@@ -15,6 +15,26 @@ function App() {
   const [selectedTicketId, setSelectedTicketId] = useState(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [poleCount, setPoleCount] = useState(0);
+
+  const fetchPoleCount = () => {
+    getPoles(1)
+      .then((res) => {
+        if (res && typeof res.total === "number") {
+          setPoleCount(res.total);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchPoleCount();
+  }, [tickets]);
+
+  const handleRefresh = async () => {
+    await refresh();
+    fetchPoleCount();
+  };
 
   const handleSelectTicket = (target) => {
     const targetId = target && typeof target === "object" ? target.id : target;
@@ -45,7 +65,7 @@ function App() {
             </h1>
           </div>
           <div className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 font-medium">
-            ⚡ 5,048 Monitored Grid Poles | OpenStreetMap Operations
+            ⚡ {poleCount.toLocaleString()} Monitored Grid Poles | OpenStreetMap Operations
           </div>
         </div>
       }
@@ -58,7 +78,7 @@ function App() {
           />
           <SimulatorPanel
             onMessage={setMessage}
-            onRefresh={refresh}
+            onRefresh={handleRefresh}
           />
         </>
       }
