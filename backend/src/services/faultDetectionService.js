@@ -34,11 +34,14 @@ function getLatestTelemetryPerPole(messages) {
 }
 
 function isScheduledOutage(context, pole) {
+  const OVERRUN_BUFFER_MS = 45 * 60 * 1000 // 45-minute fuzzy buffer for crew overruns
   return (context.scheduledOutages || []).some((outage) => {
     const now = new Date(context.observedAt || Date.now())
     const startAt = new Date(outage.start_at || outage.startAt)
-    const endAt = outage.end_at || outage.endAt ? new Date(outage.end_at || outage.endAt) : null
-    const inWindow = startAt <= now && (!endAt || now <= endAt)
+    const endAtRaw = outage.end_at || outage.endAt ? new Date(outage.end_at || outage.endAt) : null
+    const endAtWithBuffer = endAtRaw ? new Date(endAtRaw.getTime() + OVERRUN_BUFFER_MS) : null
+
+    const inWindow = startAt <= now && (!endAtWithBuffer || now <= endAtWithBuffer)
     const feederMatch = outage.feeder_id && pole.feeder_id && outage.feeder_id === pole.feeder_id
     const transformerMatch = outage.transformer_id && pole.transformer_id && outage.transformer_id === pole.transformer_id
 
