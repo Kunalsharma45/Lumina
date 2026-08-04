@@ -1,19 +1,25 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
 
 const defaultCenter = [12.9716, 77.5946];
 
-function MapController({ center }) {
+function MapController({ center, selectedTicketId }) {
   const map = useMap();
+  const prevTicketIdRef = useRef(null);
 
   useEffect(() => {
-    if (center && Array.isArray(center) && center.length === 2) {
-      map.flyTo(center, 14, {
-        duration: 1.5,
-        easeLinearity: 0.25,
-      });
+    if (selectedTicketId && selectedTicketId !== prevTicketIdRef.current) {
+      prevTicketIdRef.current = selectedTicketId;
+      if (center && Array.isArray(center) && center.length === 2) {
+        const currentZoom = map.getZoom();
+        const targetZoom = currentZoom < 13 ? 14 : currentZoom;
+        map.flyTo(center, targetZoom, {
+          duration: 1.2,
+          easeLinearity: 0.25,
+        });
+      }
     }
-  }, [center, map]);
+  }, [center, selectedTicketId, map]);
 
   return null;
 }
@@ -121,7 +127,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
         zoom={13}
         className="h-full min-h-160 w-full overflow-hidden rounded-[28px]"
       >
-        <MapController center={center} />
+        <MapController center={center} selectedTicketId={selectedTicket?.id} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
