@@ -188,11 +188,20 @@ async function generateTelemetryForTree(poles, breakAfterSeq) {
 
 async function injectFault(req, res, next) {
   try {
-    const {
+    let {
       transformer_id,
       break_after_seq = 3,
       reason = 'Synthetic span fault injected for testing',
     } = req.body || {}
+
+    if (!transformer_id) {
+      const { rows: defaultDts } = await query(`SELECT id FROM transformers ORDER BY id LIMIT 1`)
+      transformer_id = defaultDts[0]?.id
+    }
+
+    if (!transformer_id) {
+      return res.status(404).json({ message: 'No transformer found in database' })
+    }
 
     const { rows: poleRows } = await query(
       `
@@ -223,13 +232,19 @@ async function injectFault(req, res, next) {
 
 async function createMockOutage(req, res, next) {
   try {
+    let transformer_id = req.body?.transformer_id
+    if (!transformer_id) {
+      const { rows: defaultDts } = await query(`SELECT id FROM transformers ORDER BY id LIMIT 1`)
+      transformer_id = defaultDts[0]?.id
+    }
+
     const { rows } = await query(
       `
         INSERT INTO scheduled_outages (transformer_id, start_at, end_at, reason, active)
-        VALUES ($1, NOW(), NOW() + INTERVAL '2 hours', $2, TRUE)
+        VALUES ($1, NOW() - INTERVAL '10 minutes', NOW() + INTERVAL '2 hours', $2, TRUE)
         RETURNING *
       `,
-      [req.body?.transformer_id || null, req.body?.reason || 'Load shedding'],
+      [transformer_id || null, req.body?.reason || 'Load shedding'],
     )
 
     res.status(201).json({ outage: rows[0] })
