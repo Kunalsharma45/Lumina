@@ -11,11 +11,9 @@ function MapController({ center, selectedTicketId }) {
     if (selectedTicketId && selectedTicketId !== prevTicketIdRef.current) {
       prevTicketIdRef.current = selectedTicketId;
       if (center && Array.isArray(center) && center.length === 2) {
-        const currentZoom = map.getZoom();
-        const targetZoom = currentZoom < 13 ? 14 : currentZoom;
-        map.flyTo(center, targetZoom, {
-          duration: 1.2,
-          easeLinearity: 0.25,
+        map.panTo(center, {
+          animate: true,
+          duration: 0.8,
         });
       }
     }
@@ -29,7 +27,7 @@ function MarkerContent({ ticket }) {
   const confidencePct = (Number(ticket.confidence || 0) * 100).toFixed(1);
 
   return (
-    <Popup className="lumina-map-popup">
+    <Popup autoPan={false} className="lumina-map-popup">
       <div className="space-y-2 p-1 text-slate-900 min-w-64 max-w-72 font-sans">
         <div className="flex items-center justify-between border-b pb-2">
           <span className="font-bold text-base text-slate-900">{ticket.ticket_number}</span>
