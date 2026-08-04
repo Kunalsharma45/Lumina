@@ -124,23 +124,41 @@ function orientTreeFromRoot(poles, edges, rootPole) {
   return ordered
 }
 
+const topologyCache = new Map()
+
+function clearTopologyCache() {
+  topologyCache.clear()
+}
+
 function inferPoleTopology(poles, transformer = null) {
   if (!Array.isArray(poles) || poles.length === 0) {
     return []
+  }
+
+  const cacheKey = transformer?.id
+    ? `dt-${transformer.id}-${poles.length}`
+    : `poles-${poles.map((p) => p.id).join(',')}`
+
+  if (topologyCache.has(cacheKey)) {
+    return topologyCache.get(cacheKey)
   }
 
   const rootPole = chooseRootPole(poles, transformer) || poles[0]
   const edges = buildMinimumSpanningTree(poles)
   const orderedPoles = orientTreeFromRoot(poles, edges, rootPole)
 
-  return orderedPoles.map((pole) => ({
+  const result = orderedPoles.map((pole) => ({
     ...pole,
     topology_inferred: true,
     transformer_id: transformer?.id ?? pole.transformer_id,
   }))
+
+  topologyCache.set(cacheKey, result)
+  return result
 }
 
 module.exports = {
   buildMinimumSpanningTree,
+  clearTopologyCache,
   inferPoleTopology,
 }
