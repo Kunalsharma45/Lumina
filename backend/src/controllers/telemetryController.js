@@ -68,6 +68,8 @@ async function ingestTelemetry(req, res, next) {
     const detectedTickets = []
     const detectedFaults = []
 
+const setImmediatePromise = () => new Promise((resolve) => setImmediate(resolve))
+
     for (const [transformerId, transformerPoles] of groupedByTransformer.entries()) {
       const transformer = transformerPoles[0]?.transformer || null
       const needsInference = transformerPoles.some((pole) => pole.seq_on_line == null || pole.parent_pole_id == null)
@@ -120,6 +122,9 @@ async function ingestTelemetry(req, res, next) {
           detectedTickets.push(createdTicket)
         }
       }
+
+      // Yield to the event loop after processing each transformer line so Express remains responsive
+      await setImmediatePromise()
     }
 
     res.status(201).json({
