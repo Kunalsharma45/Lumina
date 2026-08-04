@@ -336,10 +336,36 @@ async function repairFault(req, res, next) {
   }
 }
 
+async function injectSpanFault(req, res, next) {
+  try {
+    const { rows: dts } = await query(`SELECT * FROM transformers WHERE topology_inferred = FALSE LIMIT 1`)
+    const dt = dts[0]
+    if (!dt) {
+      return res.status(404).json({ message: 'No transformer found' })
+    }
+
+    const { rows: poles } = await query(`SELECT * FROM poles WHERE transformer_id = $1 ORDER BY seq_on_line`, [dt.id])
+
+    const mockTelemetry = poles.map((pole, idx) => ({
+      device_id: `KSPDB-DEV-${pole.id}`,
+      pole_id: pole.id,
+      seq: Math.floor(Math.random() * 1000) + 100,
+      energized: idx < 3,
+      reported_at: new Date().toISOString(),
+    }))
+
+    await bulkUpsertTelemetry(mockTelemetry)
+    res.json({ message: 'Span fault injected successfully', affected_transformer: dt.code, count: mockTelemetry.length })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createMockOutage,
   createScenario,
   injectFault,
+  injectSpanFault,
   repairFault,
   seedSyntheticGrid,
 }
