@@ -97,7 +97,7 @@ function MarkerContent({ ticket }) {
   );
 }
 
-export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
+export default function MapView({ tickets, selectedTicket, onSelectTicket, refreshKey }) {
   const [gridPoles, setGridPoles] = useState([]);
   const [showGridPoles, setShowGridPoles] = useState(true);
   const [totalPolesCount, setTotalPolesCount] = useState(5048);
@@ -113,7 +113,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
         }
       })
       .catch(() => {});
-  }, [tickets]);
+  }, [tickets, refreshKey]);
 
   const mapTickets = tickets.filter(
     (ticket) =>

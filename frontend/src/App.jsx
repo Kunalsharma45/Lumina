@@ -17,6 +17,8 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [poleCount, setPoleCount] = useState(0);
 
+  const [refreshKey, setRefreshKey] = useState(Date.now());
+
   const fetchPoleCount = () => {
     getPoles(1)
       .then((res) => {
@@ -34,6 +36,7 @@ function App() {
   const handleRefresh = async () => {
     await refresh();
     fetchPoleCount();
+    setRefreshKey(Date.now());
   };
 
   const handleSelectTicket = (target) => {
@@ -90,6 +93,7 @@ function App() {
               tickets={tickets}
               selectedTicket={selectedTicket}
               onSelectTicket={handleSelectTicket}
+              refreshKey={refreshKey}
             />
           </div>
           <div className="border-l border-white/10">
