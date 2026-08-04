@@ -5,7 +5,7 @@ require(path.join(backendDir, 'node_modules/dotenv')).config({ path: path.join(b
 const { pool, query } = require(path.join(backendDir, 'src/config/database'))
 
 async function seed10kGrid() {
-  console.log('=== SEEDING 10,000 POLE GRID DATASET INTO POSTGRESQL ===\n')
+  console.log('=== SEEDING 10,000 POLE GRID DATASET INTO POSTGRESQL (URBAN GRID COORDINATES) ===\n')
 
   try {
     console.log('1. Wiping old database records...')
@@ -32,15 +32,21 @@ async function seed10kGrid() {
       VALUES (2, 1, 'Distribution Transformer Beta (Unmapped)', 'DT-BETA-02', '560002', 12.9800, 77.6000, TRUE);
     `)
 
-    console.log('5. Generating 10,000 Poles via SQL generate_series...')
+    console.log('5. Generating 10,000 Poles with realistic urban grid spacing...')
     await query(`
       INSERT INTO poles (transformer_id, pole_code, pin_code, latitude, longitude, seq_on_line, topology_inferred, is_active)
       SELECT 
           CASE WHEN g <= 5000 THEN 1 ELSE 2 END AS transformer_id,
           'POLE-' || LPAD(g::TEXT, 5, '0') AS pole_code,
           CASE WHEN g % 33 = 0 THEN NULL ELSE '5600' || (g % 5) END AS pin_code,
-          12.9716 + (g * 0.0001) AS latitude,
-          77.5946 + (g * 0.0001) AS longitude,
+          CASE 
+            WHEN g <= 5000 THEN 12.9716 + (((g - 1) % 500) * 0.00004)
+            ELSE 12.9800 + (((g - 5001) % 500) * 0.00004)
+          END AS latitude,
+          CASE 
+            WHEN g <= 5000 THEN 77.5946 + (FLOOR((g - 1) / 500) * 0.0008) + (((g - 1) % 500) * 0.00004)
+            ELSE 77.6000 + (FLOOR((g - 5001) / 500) * 0.0008) + (((g - 5001) % 500) * 0.00004)
+          END AS longitude,
           CASE WHEN g <= 5000 THEN g ELSE NULL END AS seq_on_line,
           CASE WHEN g <= 5000 THEN FALSE ELSE TRUE END AS topology_inferred,
           TRUE AS is_active
@@ -54,7 +60,7 @@ async function seed10kGrid() {
     `)
 
     const { rows: countRows } = await query('SELECT count(*) FROM poles')
-    console.log(`\n✔ SUCCESSFULLY SEEDED ${countRows[0].count} POLES IN POSTGRESQL!`)
+    console.log(`\n✔ SUCCESSFULLY SEEDED ${countRows[0].count} POLES IN URBAN BANGALORE GRID!`)
 
   } catch (error) {
     console.error('❌ SEEDING FAILED:', error)
