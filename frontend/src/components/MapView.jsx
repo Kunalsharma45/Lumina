@@ -87,11 +87,31 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
       Number.isFinite(Number(ticket.longitude)),
   );
 
+  const posCountMap = new Map();
+  const processedMapTickets = mapTickets.map((ticket) => {
+    const baseLat = Number(ticket.latitude);
+    const baseLng = Number(ticket.longitude);
+    const posKey = `${baseLat.toFixed(5)},${baseLng.toFixed(5)}`;
+
+    const count = posCountMap.get(posKey) || 0;
+    posCountMap.set(posKey, count + 1);
+
+    // Apply a micro-offset if identical coordinates exist so overlapping ticket markers are individually visible
+    const offsetLat = count > 0 ? baseLat + (count % 2 === 1 ? 0.0003 : -0.0003) * Math.ceil(count / 2) : baseLat;
+    const offsetLng = count > 0 ? baseLng + (count % 2 === 1 ? -0.0003 : 0.0003) * Math.ceil(count / 2) : baseLng;
+
+    return {
+      ...ticket,
+      displayLat: offsetLat,
+      displayLng: offsetLng,
+    };
+  });
+
   const center =
     selectedTicket && Number.isFinite(Number(selectedTicket.latitude))
       ? [Number(selectedTicket.latitude), Number(selectedTicket.longitude)]
-      : mapTickets[0]
-        ? [Number(mapTickets[0].latitude), Number(mapTickets[0].longitude)]
+      : processedMapTickets[0]
+        ? [processedMapTickets[0].displayLat, processedMapTickets[0].displayLng]
         : defaultCenter;
 
   return (
@@ -107,15 +127,14 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {mapTickets.map((ticket) => {
+        {processedMapTickets.map((ticket) => {
           const isSelected = selectedTicket?.id === ticket.id;
           const isInferred = Boolean(ticket.topology_inferred);
-          
-          // Determine polyline endpoints (from live pole to dark pole, or offset from boundary lat/lng)
-          const liveLat = Number(ticket.last_live_lat || ticket.latitude);
-          const liveLng = Number(ticket.last_live_lng || ticket.longitude);
-          const darkLat = Number(ticket.first_dark_lat || Number(ticket.latitude) + 0.0003);
-          const darkLng = Number(ticket.first_dark_lng || Number(ticket.longitude) + 0.0003);
+
+          const liveLat = Number(ticket.last_live_lat || ticket.displayLat);
+          const liveLng = Number(ticket.last_live_lng || ticket.displayLng);
+          const darkLat = Number(ticket.first_dark_lat || Number(ticket.displayLat) + 0.0003);
+          const darkLng = Number(ticket.first_dark_lng || Number(ticket.displayLng) + 0.0003);
 
           const polylinePositions = [
             [liveLat, liveLng],
@@ -154,7 +173,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket }) {
 
               {/* Boundary Position Marker */}
               <Marker
-                position={[Number(ticket.latitude), Number(ticket.longitude)]}
+                position={[ticket.displayLat, ticket.displayLng]}
                 eventHandlers={{
                   click: () => onSelectTicket(ticket),
                 }}
