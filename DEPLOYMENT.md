@@ -1,82 +1,112 @@
-# Deployment Guide
+# 🛠️ DEPLOYMENT.md — Operations & Troubleshooting Guide
 
-## Prerequisites
+## 1. Prerequisites & Version Requirements
 
-- Docker 24+.
-- Docker Compose v2+.
-- Node.js 22+ for local development outside Docker.
+- **Docker Desktop**: v24.0+
+- **Docker Compose**: v2.20+
+- **Node.js**: v22.0+ *(For local development outside Docker)*
+- **PostgreSQL**: v16.0+ *(Bundled in Docker container)*
 
-## Step-by-Step Commands
+---
+
+## 2. Step-by-Step Production Setup
+
+### Option A: Docker Compose (Recommended One-Command Setup)
 
 ```bash
-git clone <your-repo-url>
-cd Propel
-docker compose up
+# 1. Clone Repository
+git clone https://github.com/Kunalsharma45/Lumina.git
+cd Lumina
+
+# 2. Launch Full Stack (PostgreSQL, Backend API, Frontend Console)
+docker compose up -d
+
+# 3. Seed 10,000 Grid Poles in PostgreSQL
+docker compose exec backend node scripts/seed_large_grid.js
 ```
 
-If you want to run without Docker for development:
+### Option B: Local Manual Setup (Without Docker)
 
 ```bash
+# 1. Start Backend Server
 cd backend
 npm install
 npm start
-```
 
-```bash
+# 2. In a new terminal, start Frontend Dev Server
 cd frontend
 npm install
 npm run dev
+
+# 3. Seed 10,000 Poles into PostgreSQL
+cd backend
+node scripts/seed_large_grid.js
 ```
 
-## Environment Variables
+---
 
-### Backend
+## 3. Environment Variables Reference
 
-- `PORT` - HTTP port for the backend server.
-- `DATABASE_URL` - PostgreSQL connection string.
+Committed configuration files:
+- [backend/.env.example](file:///e:/Propel/backend/.env.example)
+- [frontend/.env.example](file:///e:/Propel/frontend/.env.example)
 
-### Frontend
+| Variable | Location | Required | Default Value | Description |
+| :--- | :--- | :---: | :--- | :--- |
+| `PORT` | `backend/.env` | Yes | `3000` | HTTP Port for Express API server |
+| `DATABASE_URL` | `backend/.env` | Yes | `postgres://postgres:postgres@localhost:5432/lumina_db` | PostgreSQL Connection String |
+| `VITE_API_URL` | `frontend/.env` | Yes | `http://localhost:3000` | Base URL for API client requests |
 
-- `VITE_API_URL` - Base URL for the backend API.
+---
 
-See [backend/.env.example](backend/.env.example) and [frontend/.env.example](frontend/.env.example).
+## 4. Verification Checklist
 
-## Verification Checklist
+1. **Verify Backend Health**: Open [http://localhost:3000/api/telemetry/health](http://localhost:3000/api/telemetry/health) ($\rightarrow$ returns `{ "status": "ok" }`).
+2. **Verify Frontend UI**: Open [http://localhost:5173](http://localhost:5173).
+3. **Verify Grid Infrastructure**: Confirm topbar badge displays `⚡ 10,000 Monitored Grid Poles`.
+4. **Verify Fault Simulator**:
+   - Click **`1. Seed Grid Data`**: Resets grid to 10,000 live poles (0 active tickets).
+   - Click **`2. Inject Span Break`**: Spawns localized fault ticket ($P_3 \rightarrow P_4$) on map.
+   - Click **`3. Monsoon Scenario`**: Spawns 2 simultaneous storm fault tickets.
+5. **Verify "Lying Lineman" Safety Enforcement**:
+   - Click **`Mark Resolved`** on an open ticket without repairing: System blocks resolution with `409 Conflict`.
+   - Click **`⚡ Repair & Send Restored Telemetry`**: System ingests live telemetry, auto-verifies, and allows ticket closure.
 
-1. Start the stack with `docker compose up`.
-2. Confirm PostgreSQL starts without errors.
-3. Confirm the backend logs `Server running: http://localhost:3000`.
-4. Open the frontend in the browser.
-5. Use the simulator panel to create a scenario.
-6. Confirm tickets appear in the list and on the map.
-7. Try the resolve flow and confirm the backend rejects closure until telemetry shows restored poles.
+---
 
-## Troubleshooting
+## 5. Troubleshooting Section (Real-World Failure Modes)
 
-### Port already in use
+### 1. Port Conflicts (3000 / 5173 / 5432)
+- **Symptom**: `Error: listen EADDRINUSE: address already in use :::3000`.
+- **Fix**: Kill conflicting background processes:
+  ```bash
+  npx kill-port 3000
+  npx kill-port 5173
+  ```
 
-If Docker reports a port conflict on 3000, 5173, or 5432, stop the conflicting process or change the published port in `docker-compose.yml`.
+### 2. Database Race Condition / Startup Delay
+- **Symptom**: Backend crashes on startup with `connection refused at localhost:5432`.
+- **Fix**: `docker-compose.yml` includes a PostgreSQL `healthcheck`. If running manually, wait 5 seconds for PostgreSQL container readiness before launching `npm start`.
 
-### CORS errors
+### 3. OpenStreetMap CDN Tile Rate Limits (Black Tile Squares)
+- **Symptom**: Map displays black square tile boxes.
+- **Fix**: Replaced default OSM tile URL with high-speed CartoDB Voyager CDN (`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`).
 
-If the frontend cannot call the backend, confirm `VITE_API_URL` points to the backend host and that CORS is enabled in [backend/src/server.js](backend/src/server.js).
+### 4. Leaflet Popup Canvas Shift / Map Jumping
+- **Symptom**: Map container jumps upward when clicking markers.
+- **Fix**: Enforced `<Popup autoPan={false}>` across all Leaflet markers.
 
-### Database startup timing
+---
 
-If the backend starts before PostgreSQL is ready, restart the stack. The compose file uses a health check, but cold startup can still take a moment.
+## 6. Environment Reset Procedure
 
-### Empty ticket list after scenario creation
-
-Verify that the simulator scenario endpoint returned a scenario payload and that the backend can reach PostgreSQL through `DATABASE_URL`.
-
-### Free-hosting cold starts
-
-If you deploy to a free tier, expect slow first requests after idle periods. Increase timeout and health-check windows if needed.
-
-## Reset Command
+To completely wipe all test data, telemetry logs, and tickets and reset PostgreSQL to a clean 10,000-pole baseline:
 
 ```bash
-docker compose down -v
+cd backend
+node scripts/seed_large_grid.js
 ```
-
-This removes the containers and the PostgreSQL volume so the database starts fresh on the next `docker compose up`.
+*Or via SQL:*
+```sql
+TRUNCATE ticket_events, tickets, scheduled_outages, telemetry, poles, transformers, feeders, substations RESTART IDENTITY CASCADE;
+```
