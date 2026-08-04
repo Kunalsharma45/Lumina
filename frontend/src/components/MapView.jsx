@@ -41,25 +41,61 @@ function MapController({ center, selectedTicketId, ticketsCount }) {
   return null;
 }
 
+function getFaultStyle(ticket, isSelected) {
+  if (ticket.fault_type === 'DT_FAULT') {
+    return {
+      color: isSelected ? '#A855F7' : '#8B5CF6', // Deep Purple / Violet for Transformer Fuse Blow
+      weight: isSelected ? 10 : 6,
+      dashArray: '12, 6',
+      opacity: 0.95,
+      label: '⚡ DT FUSE BLOWN / SHORT CIRCUIT',
+      badgeClass: 'bg-purple-100 text-purple-900 border border-purple-300',
+    };
+  }
+
+  if (ticket.fault_type === 'DEAD_SENSOR' || ticket.is_dead_sensor) {
+    return {
+      color: isSelected ? '#FBBF24' : '#F59E0B', // Amber / Yellow Warning for Hardware Sensor Glitch
+      weight: isSelected ? 8 : 5,
+      dashArray: '4, 4',
+      opacity: 0.9,
+      label: '⚠️ SENSOR / HARDWARE GLITCH',
+      badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300',
+    };
+  }
+
+  // Standard Wire Break (SPAN_BREAK): Dashed Red (#EF4444)
+  return {
+    color: isSelected ? '#F87171' : '#EF4444',
+    weight: isSelected ? 9 : 5,
+    dashArray: '5, 10', // Dashed line style at boundary break
+    opacity: 0.95,
+    label: '💥 WIRE BREAK / SPAN SNAP',
+    badgeClass: 'bg-rose-100 text-rose-900 border border-rose-300',
+  };
+}
+
 function MarkerContent({ ticket }) {
   const isInferred = Boolean(ticket.topology_inferred);
   const confidencePct = (Number(ticket.confidence || 0) * 100).toFixed(1);
+  const faultStyle = getFaultStyle(ticket, false);
 
   return (
     <Popup autoPan={false} className="lumina-map-popup">
       <div className="space-y-2 p-1 text-slate-900 min-w-64 max-w-72 font-sans">
         <div className="flex items-center justify-between border-b pb-2">
           <span className="font-bold text-base text-slate-900">{ticket.ticket_number}</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-            ticket.status === 'VERIFIED' || ticket.status === 'CLOSED'
-              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-              : 'bg-amber-100 text-amber-800 border border-amber-300'
-          }`}>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${faultStyle.badgeClass}`}>
             {ticket.status}
           </span>
         </div>
 
         <div className="space-y-1.5 text-xs text-slate-700">
+          <div className="flex justify-between">
+            <span className="font-semibold text-slate-500 uppercase tracking-wider">Fault Diagnosis:</span>
+            <span className="font-bold text-slate-900">{faultStyle.label}</span>
+          </div>
+
           <div className="flex justify-between">
             <span className="font-semibold text-slate-500 uppercase tracking-wider">Confidence:</span>
             <span className="font-bold text-cyan-800">{confidencePct}%</span>
@@ -209,7 +245,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
 
         {processedMapTickets.map((ticket) => {
           const isSelected = selectedTicket?.id === ticket.id;
-          const isInferred = Boolean(ticket.topology_inferred);
+          const style = getFaultStyle(ticket, isSelected);
 
           const liveLat = Number(ticket.last_live_lat || ticket.latitude || ticket.displayLat);
           const liveLng = Number(ticket.last_live_lng || ticket.longitude || ticket.displayLng);
@@ -240,10 +276,10 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                     click: () => onSelectTicket(ticket),
                   }}
                   pathOptions={{
-                    color: isSelected ? "#38bdf8" : isInferred ? "#f59e0b" : "#ef4444",
-                    weight: isSelected ? 8 : 5,
-                    dashArray: isInferred ? "8, 8" : null,
-                    opacity: isSelected ? 1 : 0.85,
+                    color: style.color,
+                    weight: style.weight,
+                    dashArray: style.dashArray,
+                    opacity: style.opacity,
                   }}
                 >
                   <MarkerContent ticket={ticket} />
