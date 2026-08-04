@@ -172,29 +172,39 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
           maxZoom={19}
         />
 
-        {/* Grid Poles Infrastructure Layer (Canvas Accelerated) */}
+        {/* Grid Poles Infrastructure Layer (Canvas Accelerated: Green = Working, Red = Fault/Dark) */}
         {showGridPoles
-          ? gridPoles.slice(0, 800).map((pole) => (
-              <CircleMarker
-                key={`grid-pole-${pole.id}`}
-                center={[Number(pole.latitude), Number(pole.longitude)]}
-                radius={3}
-                pathOptions={{
-                  color: "#0284c7",
-                  fillColor: "#38bdf8",
-                  fillOpacity: 0.85,
-                  weight: 1,
-                }}
-              >
-                <Popup autoPan={false}>
-                  <div className="p-1 text-xs font-sans text-slate-800">
-                    <p className="font-bold text-slate-900">{pole.pole_code}</p>
-                    <p className="text-[11px] text-slate-500">Transformer ID: {pole.transformer_id}</p>
-                    <p className="text-[11px] text-slate-500">Sequence: #{pole.seq_on_line || "MST Inferred"}</p>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))
+          ? gridPoles.slice(0, 800).map((pole) => {
+              const isWorking = pole.energized !== false;
+              return (
+                <CircleMarker
+                  key={`grid-pole-${pole.id}`}
+                  center={[Number(pole.latitude), Number(pole.longitude)]}
+                  radius={isWorking ? 3.5 : 5}
+                  pathOptions={{
+                    color: isWorking ? "#059669" : "#dc2626",
+                    fillColor: isWorking ? "#10b981" : "#ef4444",
+                    fillOpacity: isWorking ? 0.85 : 1,
+                    weight: isWorking ? 1 : 2,
+                  }}
+                >
+                  <Popup autoPan={false}>
+                    <div className="p-1 text-xs font-sans text-slate-800">
+                      <div className="flex items-center justify-between gap-2 border-b pb-1">
+                        <span className="font-bold text-slate-900">{pole.pole_code}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          isWorking ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {isWorking ? '✓ WORKING (ENERGIZED)' : '⚠️ DARK (FAULT)'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">Transformer ID: {pole.transformer_id}</p>
+                      <p className="text-[11px] text-slate-500">Sequence: #{pole.seq_on_line || "MST Inferred"}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })
           : null}
 
         {processedMapTickets.map((ticket) => {
