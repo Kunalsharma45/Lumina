@@ -64,9 +64,9 @@ async function seedLargeGrid() {
       transformers.push(rows[0])
     }
 
-    console.log('5. Bulk inserting 5,000 Poles in batch chunks...')
-    const totalPoles = 5000
-    const polesPerDT = 50
+    console.log('5. Bulk inserting 10,000 Poles in batch chunks...')
+    const totalPoles = 10000
+    const polesPerDT = 100
     const poleValues = []
 
     for (let tIdx = 0; tIdx < transformers.length; tIdx++) {

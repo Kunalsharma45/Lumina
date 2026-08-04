@@ -193,15 +193,16 @@ async function seedSyntheticGrid(req, res, next) {
       transformers.push(rows[0])
     }
 
+    const targetPolesPerDT = Number(req.body?.polesPerDT) || 100
     const poleValues = []
     for (let tIdx = 0; tIdx < transformers.length; tIdx++) {
       const dt = transformers[tIdx]
       const isMissingTopology = dt.topology_inferred
       const angle = (tIdx * 36) * (Math.PI / 180) // Radial angle distribution per feeder branch
 
-      for (let pSeq = 1; pSeq <= 50; pSeq++) {
-        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00012)
-        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00012)
+      for (let pSeq = 1; pSeq <= targetPolesPerDT; pSeq++) {
+        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00008)
+        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00008)
         const code = `P-${dt.code}-${String(pSeq).padStart(3, '0')}`
 
         poleValues.push({
@@ -269,7 +270,7 @@ async function seedSyntheticGrid(req, res, next) {
     }
 
     res.status(201).json({
-      message: 'Synthetic grid seeded with 5,000 poles across 100 transformers',
+      message: `Synthetic grid seeded with ${insertedPoles.length.toLocaleString()} poles across ${transformers.length} transformers`,
       total_poles: insertedPoles.length,
       transformers: transformers.length,
     })
