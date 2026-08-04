@@ -146,7 +146,24 @@ function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], obser
     const affectedPoles = downstreamPoles.filter((downstreamPole) => stateByPoleId.get(String(downstreamPole.id)) === false)
 
     if (!lastLivePole && stateByPoleId.get(String(pole.id)) === false && index === 0) {
-      continue
+      const allDark = orderedPoles.every((p) => stateByPoleId.get(String(p.id)) === false)
+      if (allDark) {
+        const topologyInferred = orderedPoles.some((currentPole) => currentPole.topology_inferred) || Boolean(transformer?.topology_inferred)
+        faults.push({
+          fault_type: 'DT_FAULT',
+          last_live_pole_id: null,
+          first_dark_pole_id: pole.id,
+          downstream_pole_count: orderedPoles.length,
+          confidence: 0.95,
+          confidence_reason: '100% of poles dark on distribution transformer; DT fuse blown or transformer trip detected.',
+          pin_code: pole.pin_code || transformer?.pin_code || null,
+          latitude: pole.latitude,
+          longitude: pole.longitude,
+          boundary_span_meters: 0,
+          topology_inferred: topologyInferred,
+        })
+        break
+      }
     }
 
     const topologyInferred = orderedPoles.some((currentPole) => currentPole.topology_inferred) || Boolean(transformer?.topology_inferred)
