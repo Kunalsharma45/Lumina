@@ -325,18 +325,18 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
 
         {/* Grid Poles Infrastructure Layer (Canvas Accelerated) */}
         {showGridPoles
-          ? gridPoles.slice(0, 800).map((pole) => {
+          ? gridPoles.map((pole) => {
               const isWorking = pole.energized !== false;
               return (
                 <CircleMarker
                   key={`grid-pole-${pole.id}`}
                   center={[Number(pole.latitude), Number(pole.longitude)]}
-                  radius={isWorking ? 3.5 : 4.5} // Diameter of ~7px-9px
+                  radius={isWorking ? 2 : 3.5} // Diameter of 4px-7px
                   pathOptions={{
-                    color: isWorking ? "#059669" : "#dc2626", // Emerald 600
+                    color: isWorking ? "#047857" : "#dc2626", // Emerald 700
                     fillColor: isWorking ? "#10b981" : "#ef4444", // Emerald 500
-                    fillOpacity: isWorking ? 0.75 : 1,
-                    weight: isWorking ? 1 : 2,
+                    fillOpacity: isWorking ? 0.6 : 1,
+                    weight: isWorking ? 0.5 : 1.5,
                   }}
                 >
                   <Popup autoPan={false}>
@@ -344,7 +344,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                       <div className="flex items-center justify-between gap-2 border-b pb-1">
                         <span className="font-bold text-slate-900">{pole.pole_code}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          isWorking ? 'bg-slate-100 text-slate-800' : 'bg-rose-100 text-rose-800'
+                          isWorking ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                         }`}>
                           {isWorking ? '✓ WORKING (ENERGIZED)' : '⚠️ DARK (FAULT)'}
                         </span>
