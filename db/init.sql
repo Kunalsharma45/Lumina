@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS poles (
   UNIQUE (transformer_id, pole_code)
 );
 
+ALTER TABLE transformers DROP CONSTRAINT IF EXISTS transformers_parent_pole_fk;
 ALTER TABLE transformers
   ADD CONSTRAINT transformers_parent_pole_fk
   FOREIGN KEY (parent_pole_id) REFERENCES poles(id) ON DELETE SET NULL;
