@@ -62,9 +62,9 @@ Committed configuration files:
 
 1. **Verify Backend Health**: Open [http://localhost:3000/api/telemetry/health](http://localhost:3000/api/telemetry/health) ($\rightarrow$ returns `{ "status": "ok" }`).
 2. **Verify Frontend UI**: Open [http://localhost:5173](http://localhost:5173).
-3. **Verify Grid Infrastructure**: Confirm topbar badge displays `⚡ 10,000 Monitored Grid Poles`.
+3. **Verify Grid Infrastructure**: Confirm topbar badge displays `⚡ 38,400 Monitored Grid Poles`.
 4. **Verify Fault Simulator**:
-   - Click **`1. Seed Grid Data`**: Resets grid to 10,000 live poles (0 active tickets).
+   - Click **`1. Seed Grid Data`**: Resets grid to 38,400 live poles (0 active tickets).
    - Click **`2. Inject Span Break`**: Spawns localized fault ticket ($P_3 \rightarrow P_4$) on map.
    - Click **`3. Monsoon Scenario`**: Spawns 2 simultaneous storm fault tickets.
 5. **Verify "Lying Lineman" Safety Enforcement**:
@@ -99,7 +99,7 @@ Committed configuration files:
 
 ## 6. Environment Reset Procedure
 
-To completely wipe all test data, telemetry logs, and tickets and reset PostgreSQL to a clean 10,000-pole baseline:
+To completely wipe all test data, telemetry logs, and tickets and reset PostgreSQL to a clean 38,400-pole baseline:
 
 ```bash
 cd backend

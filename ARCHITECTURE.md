@@ -7,7 +7,7 @@ Lumina is structured as an event-driven, micro-batch distribution grid monitorin
 ```mermaid
 flowchart TD
     subgraph Grid_Sensors ["⚡ IoT Pole Hardware"]
-        P1["Pole Sensors (dev-1..10000)"]
+        P1["Pole Sensors (dev-1..38400)"]
     end
 
     subgraph API_Layer ["🚀 Express API Server (Node.js)"]
@@ -141,9 +141,9 @@ If an operator clicks **Mark Resolved** before calling **Verify via Telemetry**,
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/telemetry/ingest` | Batch ingest IoT telemetry | `[{ device_id, pole_id, seq, energized }]` | `{ ingested, deduplicated, tickets }` |
 | `GET` | `/api/tickets` | List incident tickets | None | `{ tickets: [...] }` |
-| `GET` | `/api/poles` | List grid poles | `?limit=10000` | `{ total: 10000, poles: [...] }` |
+| `GET` | `/api/poles` | List grid poles | `?limit=38400` | `{ total: 38400, poles: [...] }` |
 | `PATCH` | `/api/tickets/:id/resolve` | Mark ticket resolved | `{ note }` | `200 Ticket` or `409 Conflict` |
-| `POST` | `/api/simulator/seed` | Wipe & seed 10,000 poles | `{ polesPerDT: 100 }` | `{ message, total_poles: 10000 }` |
+| `POST` | `/api/simulator/seed` | Wipe & seed 38,400 poles | `{ polesPerDT: 100 }` | `{ message, total_poles: 38400 }` |
 | `POST` | `/api/simulator/inject-fault`| Inject span break fault | `{ break_after_seq: 3 }` | `{ ticket: {...} }` |
 
 ---
@@ -157,7 +157,7 @@ If an operator clicks **Mark Resolved** before calling **Verify via Telemetry**,
 - **⚠️ Hardware Sensor Glitches (`#F59E0B`)**: Amber yellow warning markers for hardware communication dropouts.
 
 ### HTML5 GPU Canvas Acceleration (`preferCanvas={true}`)
-To render 10,000 grid poles at 60 FPS without DOM lag, Leaflet's `<MapContainer preferCanvas={true}>` renders markers onto a single GPU-accelerated HTML5 Canvas context.
+To render 38,400 grid poles at 60 FPS without DOM lag, Leaflet's `<MapContainer preferCanvas={true}>` renders markers onto a single GPU-accelerated HTML5 Canvas context.
 
 ---
 

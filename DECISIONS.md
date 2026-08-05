@@ -14,7 +14,7 @@ This document records the technical trade-offs, design choices, documented assum
 ### Decision 7: HTML5 GPU Canvas Acceleration (`preferCanvas={true}`) (2026-08-04)
 - **Chosen**: Leaflet `<MapContainer preferCanvas={true}>`.
 - **Rejected**: Standard Leaflet SVG DOM node rendering.
-- **Rationale**: Rendering 10,000 poles with individual SVG `<path>` elements overloaded the browser DOM tree, causing frame drops during zoom/pan. HTML5 Canvas renders 10,000 markers on a single GPU context at 60 FPS.
+- **Rationale**: Rendering 38,400 poles with individual SVG `<path>` elements overloaded the browser DOM tree, causing frame drops during zoom/pan. HTML5 Canvas renders 38,400 markers on a single GPU context at 60 FPS.
 
 ### Decision 6: Telemetry-Enforced Restoration ("Lying Lineman" Safety Rule) (2026-08-03)
 - **Chosen**: Return `409 Conflict` if an operator/crew attempts to close a ticket while backend telemetry confirms downstream poles are still dark.
@@ -56,4 +56,4 @@ If given two additional weeks, the following features would be implemented:
 ## 4. Honest Fragile Points & Limitations
 
 1. **Geometric MST Edge Cases**: In rare geographic terrains (e.g. river crossings or sharp diagonal alleys), physical proximity can connect two poles that belong to different physical circuits. Real GIS survey data is always preferred over geometric MST heuristics.
-2. **Database Scale Caps**: The backend seeder is optimized for 10,000 poles per instance. Scaling to 1,000,000 poles requires horizontal database sharding or TimescaleDB hyper-tables.
+2. **Database Scale Caps**: The backend seeder is optimized for 38,400 poles per instance. Scaling to 1,000,000 poles requires horizontal database sharding or TimescaleDB hyper-tables.
