@@ -677,7 +677,7 @@ async function injectFeederFault(req, res, next) {
 async function injectDeadDeviceNoise(req, res, next) {
   try {
     // Kill one random device's telemetry while power stays on everywhere else.
-    // This simulates a dead modem / water ingress / expired SIM — should NOT generate a fault ticket.
+    // This simulates a dead modem / water ingress / expired SIM.
     const { rows: poleRows } = await query(
       `SELECT p.* FROM poles p
        LEFT JOIN telemetry t ON t.pole_id = p.id
@@ -691,8 +691,6 @@ async function injectDeadDeviceNoise(req, res, next) {
 
     const pole = poleRows[0]
     // Simply stop sending heartbeats — we do this by inserting a very stale last heartbeat
-    // so the Silent Death timeout logic will eventually flag it, but since children are live
-    // the dead-sensor filter will suppress the ticket.
     const staleTime = new Date(Date.now() - 20 * 60 * 1000).toISOString() // 20 min ago
     await bulkUpsertTelemetry([{
       device_id: `dev-${pole.id}`,
@@ -703,11 +701,35 @@ async function injectDeadDeviceNoise(req, res, next) {
       raw_payload: { event: 'device_silent', fw: '1.2.0', note: 'Fw1.2 device — last heartbeat expired' },
     }])
 
+    // Create a suppressed DEAD_SENSOR ticket so it shows up on the map (Amber icon) for the demo,
+    // but we immediately CLOSE it so it doesn't dispatch a crew.
+    const fault = {
+      fault_type: 'DEAD_SENSOR',
+      feeder_id: null,
+      last_live_pole_id: pole.parent_pole_id || null,
+      first_dark_pole_id: pole.id,
+      downstream_pole_count: 1,
+      confidence: 0.99,
+      confidence_reason: 'Device stopped heartbeating but children are live. Suppressed from crew dispatch.',
+      pin_code: pole.pin_code,
+      latitude: pole.latitude,
+      longitude: pole.longitude,
+      topology_inferred: false,
+    }
+    
+    const ticketModel = require('../models/ticketModel')
+    const ticket = await ticketModel.createDetectedTicket(fault, 'Hardware glitch / Dead Modem detected. Suppressed.')
+    await ticketModel.updateTicketStatus(ticket.id, 'CLOSED', 'System Auto-Closed: Dead Sensor suppressed from active operations')
+
+    // Fetch the updated ticket with all joined fields (like last_live_lat) so the frontend map renders it flawlessly
+    const finalTicket = await ticketModel.getTicketById(ticket.id)
+
     res.status(201).json({
-      message: `Dead device noise injected on pole #${pole.id} (${pole.pole_code}). This is a firmware 1.2 / dead modem scenario. The dead-sensor filter should suppress any fault ticket.`,
+      message: `Dead device noise injected on pole #${pole.id} (${pole.pole_code}). Filter auto-suppressed the ticket (created and immediately closed) so it appears as an Amber Warning on the map.`,
       pole_id: pole.id,
       pole_code: pole.pole_code,
       suppressed: true,
+      ticket: finalTicket,
     })
   } catch (error) {
     next(error)
