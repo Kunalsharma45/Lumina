@@ -152,14 +152,14 @@ function getFaultIcon(ticket, isSelected) {
 
 function getTransformerIcon() {
   const iconHtml = `
-    <div class="flex h-3 w-3 items-center justify-center rounded-[2px] bg-blue-500 border border-blue-700 shadow-sm opacity-90"></div>
+    <div class="flex h-1.5 w-1.5 items-center justify-center rounded-sm bg-blue-500 border border-blue-700 shadow-sm opacity-90"></div>
   `;
   return L.divIcon({
     html: iconHtml,
     className: 'bg-transparent border-none',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-    popupAnchor: [0, -6],
+    iconSize: [6, 6],
+    iconAnchor: [3, 3],
+    popupAnchor: [0, -3],
   });
 }
 
