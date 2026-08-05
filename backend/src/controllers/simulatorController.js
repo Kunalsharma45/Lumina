@@ -398,21 +398,72 @@ async function injectFault(req, res, next) {
 async function createMockOutage(req, res, next) {
   try {
     let transformer_id = req.body?.transformer_id
+    let transformerCode = 'DT-1'
+
     if (!transformer_id) {
-      const { rows: defaultDts } = await query(`SELECT id FROM transformers ORDER BY id LIMIT 1`)
-      transformer_id = defaultDts[0]?.id
+      const { rows: randomDt } = await query(`SELECT id, code FROM transformers ORDER BY RANDOM() LIMIT 1`)
+      if (randomDt.length > 0) {
+        transformer_id = randomDt[0].id
+        transformerCode = randomDt[0].code
+      }
+    } else {
+      const { rows: dtRows } = await query(`SELECT code FROM transformers WHERE id = $1`, [transformer_id])
+      if (dtRows.length > 0) transformerCode = dtRows[0].code
     }
 
-    const { rows } = await query(
+    const { rows: outageRows } = await query(
       `
         INSERT INTO scheduled_outages (transformer_id, start_at, end_at, reason, active)
         VALUES ($1, NOW() - INTERVAL '10 minutes', NOW() + INTERVAL '2 hours', $2, TRUE)
         RETURNING *
       `,
-      [transformer_id || null, req.body?.reason || 'Load shedding'],
+      [transformer_id || null, req.body?.reason || 'Scheduled Load Shedding Window'],
     )
 
-    res.status(201).json({ outage: rows[0] })
+    // Inject dark telemetry for poles under this transformer to demonstrate ticket suppression
+    const { rows: poleRows } = await query(
+      `SELECT * FROM poles WHERE transformer_id = $1 ORDER BY seq_on_line, id`,
+      [transformer_id]
+    )
+
+    if (poleRows.length > 0) {
+      const breakAfterSeq = 2
+      const insertedTelemetry = await generateTelemetryForTree(poleRows, breakAfterSeq)
+
+      const { detectFaults } = require('../services/faultDetectionService')
+      const { inferPoleTopology } = require('../services/graphBuilderService')
+
+      const { rows: dtRows } = await query(`SELECT * FROM transformers WHERE id = $1`, [transformer_id])
+      const transformer = dtRows[0]
+
+      const orderedPoles = poleRows.some((p) => p.seq_on_line == null)
+        ? inferPoleTopology(poleRows, transformer)
+        : poleRows
+
+      // Run fault detection passing active scheduled outages context
+      const faults = detectFaults({
+        poles: orderedPoles,
+        telemetry: insertedTelemetry,
+        transformer,
+        scheduledOutages: outageRows,
+      })
+
+      // Zero tickets generated because scheduled outage suppressed false alarms!
+      return res.status(201).json({
+        message: `Scheduled Load Shedding Active on ${transformerCode}: Dark telemetry ingested but ticket creation SUPPRESSED due to maintenance schedule.`,
+        outage: outageRows[0],
+        transformer_code: transformerCode,
+        tickets_created: faults.length,
+        suppressed: true,
+      })
+    }
+
+    res.status(201).json({
+      message: `Scheduled Load Shedding Active on ${transformerCode}`,
+      outage: outageRows[0],
+      transformer_code: transformerCode,
+      suppressed: true,
+    })
   } catch (error) {
     next(error)
   }

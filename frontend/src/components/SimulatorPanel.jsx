@@ -1,11 +1,12 @@
 import { createMockOutage, createScenario, injectFault, seedSyntheticGrid } from "../api/apiClient";
 
 export default function SimulatorPanel({ onMessage, onRefresh }) {
-  async function runAction(actionName, apiCall, successMessage) {
+  async function runAction(actionName, apiCall, fallbackMessage) {
     try {
       onMessage(`Running ${actionName}...`);
-      await apiCall();
-      onMessage(successMessage);
+      const res = await apiCall();
+      const successText = res?.message || fallbackMessage;
+      onMessage(successText);
       await onRefresh();
     } catch (error) {
       onMessage(error.message || `${actionName} failed`);
@@ -39,7 +40,7 @@ export default function SimulatorPanel({ onMessage, onRefresh }) {
         {/* BUTTON 3: MONSOON SCENARIO */}
         <button
           type="button"
-          onClick={() => runAction("Scenario", () => createScenario({ poleCount: 10, break_after_seq: 4 }), "Monsoon scenario created!")}
+          onClick={() => runAction("Scenario", () => createScenario({ name: "Monsoon Storm Outages" }), "Monsoon scenario created!")}
           className="rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-3 py-2.5 text-xs sm:text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
         >
           3. Monsoon Scenario
@@ -48,7 +49,7 @@ export default function SimulatorPanel({ onMessage, onRefresh }) {
         {/* BUTTON 4: SCHEDULED OUTAGE */}
         <button
           type="button"
-          onClick={() => runAction("Mock Outage", () => createMockOutage({ transformer_id: 1 }), "Mock scheduled outage active!")}
+          onClick={() => runAction("Load Shedding", () => createMockOutage(), "Scheduled load shedding active!")}
           className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20"
         >
           4. Load Shedding
