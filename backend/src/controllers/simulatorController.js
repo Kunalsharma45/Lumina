@@ -152,13 +152,13 @@ async function seedSyntheticGrid(req, res, next) {
       const { rows } = await query(
         `INSERT INTO substations (name, code, pin_code, latitude, longitude)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [`Substation-${i}`, `SS-${i}`, `56000${i}`, baseLat + (i * 0.02), baseLng + (i * 0.02)]
+        [`Substation-${i}`, `SS-${i}`, `56000${i}`, baseLat + (i * 0.015), baseLng + (i * 0.015)]
       )
       substations.push(rows[0])
     }
 
     const feeders = []
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 31; i++) {
       const ss = substations[i % substations.length]
       const { rows } = await query(
         `INSERT INTO feeders (substation_id, name, code)
@@ -169,46 +169,60 @@ async function seedSyntheticGrid(req, res, next) {
     }
 
     const transformers = []
-    for (let i = 0; i < 100; i++) {
-      const feeder = feeders[i % feeders.length]
-      const isMissingTopology = i >= 40
-      const dtLat = baseLat + (Math.floor(i / 10) * 0.005)
-      const dtLng = baseLng + ((i % 10) * 0.005)
+    const dtValues = []
+    const dtParams = []
+    let dtParamIdx = 1
 
-      const { rows } = await query(
-        `INSERT INTO transformers (feeder_id, name, code, pin_code, latitude, longitude, seq_on_line, parent_pole_id, topology_inferred)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [
-          feeder.id,
-          `DT-${feeder.code}-${i + 1}`,
-          `DT-${feeder.code}-${i + 1}`,
-          `5600${10 + (i % 80)}`,
-          dtLat,
-          dtLng,
-          isMissingTopology ? null : 1,
-          null,
-          isMissingTopology
-        ]
+    for (let i = 0; i < 412; i++) {
+      const feeder = feeders[i % feeders.length]
+      const isMissingTopology = i >= 165
+      const dtLat = baseLat + (Math.floor(i / 20) * 0.004)
+      const dtLng = baseLng + ((i % 20) * 0.004)
+      const pinCode = (i % 33 === 0) ? null : `5600${10 + (i % 80)}`
+
+      dtValues.push(`($${dtParamIdx}, $${dtParamIdx+1}, $${dtParamIdx+2}, $${dtParamIdx+3}, $${dtParamIdx+4}, $${dtParamIdx+5}, $${dtParamIdx+6}, $${dtParamIdx+7}, $${dtParamIdx+8})`)
+      dtParams.push(
+        feeder.id,
+        `DT-${feeder.code}-${i + 1}`,
+        `DT-${feeder.code}-${i + 1}`,
+        pinCode,
+        dtLat,
+        dtLng,
+        isMissingTopology ? null : 1,
+        null,
+        isMissingTopology
       )
-      transformers.push(rows[0])
+      dtParamIdx += 9
     }
 
-    const targetPolesPerDT = Number(req.body?.polesPerDT) || 100
+    const { rows: insertedDts } = await query(
+      `INSERT INTO transformers (feeder_id, name, code, pin_code, latitude, longitude, seq_on_line, parent_pole_id, topology_inferred)
+       VALUES ${dtValues.join(', ')} RETURNING *`,
+      dtParams
+    )
+    transformers.push(...insertedDts)
+
+    const totalPolesTarget = 38400
+    const polesPerDT = Math.ceil(totalPolesTarget / transformers.length)
     const poleValues = []
+
     for (let tIdx = 0; tIdx < transformers.length; tIdx++) {
       const dt = transformers[tIdx]
       const isMissingTopology = dt.topology_inferred
-      const angle = (tIdx * 36) * (Math.PI / 180) // Radial angle distribution per feeder branch
+      const angle = (tIdx * 17) * (Math.PI / 180)
 
-      for (let pSeq = 1; pSeq <= targetPolesPerDT; pSeq++) {
-        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00008)
-        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00008)
+      for (let pSeq = 1; pSeq <= polesPerDT; pSeq++) {
+        if (poleValues.length >= totalPolesTarget) break
+
+        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00006)
+        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00006)
         const code = `P-${dt.code}-${String(pSeq).padStart(3, '0')}`
+        const polePinCode = (pSeq % 33 === 0) ? null : dt.pin_code
 
         poleValues.push({
           transformer_id: dt.id,
           pole_code: code,
-          pin_code: dt.pin_code,
+          pin_code: polePinCode,
           latitude: pLat,
           longitude: pLng,
           seq_on_line: isMissingTopology ? null : pSeq,
@@ -217,7 +231,7 @@ async function seedSyntheticGrid(req, res, next) {
       }
     }
 
-    const chunkSize = 500
+    const chunkSize = 1000
     const insertedPoles = []
 
     for (let i = 0; i < poleValues.length; i += chunkSize) {

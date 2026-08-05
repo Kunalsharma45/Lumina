@@ -142,10 +142,10 @@ function MarkerContent({ ticket }) {
 export default function MapView({ tickets, selectedTicket, onSelectTicket, refreshKey }) {
   const [gridPoles, setGridPoles] = useState([]);
   const [showGridPoles, setShowGridPoles] = useState(true);
-  const [totalPolesCount, setTotalPolesCount] = useState(5048);
+  const [totalPolesCount, setTotalPolesCount] = useState(38400);
 
   useEffect(() => {
-    getPoles(800)
+    getPoles(1000)
       .then((res) => {
         if (res && res.poles) {
           setGridPoles(res.poles);

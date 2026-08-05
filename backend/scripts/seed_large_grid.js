@@ -5,30 +5,30 @@ require(path.join(backendDir, 'node_modules/dotenv')).config({ path: path.join(b
 const { pool, query } = require(path.join(backendDir, 'src/config/database'))
 
 async function seedLargeGrid() {
-  console.log('--- Starting Large Scale Grid Data Seeding (5,000 Poles) ---')
+  console.log('=== STARTING PRODUCTION MASSIVE SCALE GRID DATA SEEDING (38,400 POLES) ===')
   const startTime = Date.now()
 
   try {
-    console.log('1. Clearing existing records...')
+    console.log('1. Clearing existing database records...')
     await query('TRUNCATE ticket_events, tickets, scheduled_outages, telemetry, poles, transformers, feeders, substations RESTART IDENTITY CASCADE;')
 
-    console.log('2. Inserting 4 Substations...')
-    const substations = []
     const baseLat = 12.9716
     const baseLng = 77.5946
 
+    console.log('2. Inserting 4 Substations...')
+    const substations = []
     for (let i = 1; i <= 4; i++) {
       const { rows } = await query(
         `INSERT INTO substations (name, code, pin_code, latitude, longitude)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [`Substation-${i}`, `SS-${i}`, `56000${i}`, baseLat + (i * 0.02), baseLng + (i * 0.02)]
+        [`Central Substation-${i}`, `SS-${i}`, `56000${i}`, baseLat + (i * 0.015), baseLng + (i * 0.015)]
       )
       substations.push(rows[0])
     }
 
-    console.log('3. Inserting 20 Feeders...')
+    console.log('3. Inserting 31 Feeders...')
     const feeders = []
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 31; i++) {
       const ss = substations[i % substations.length]
       const { rows } = await query(
         `INSERT INTO feeders (substation_id, name, code)
@@ -38,50 +38,64 @@ async function seedLargeGrid() {
       feeders.push(rows[0])
     }
 
-    console.log('4. Inserting 100 Distribution Transformers (DTs)...')
+    console.log('4. Bulk inserting 412 Distribution Transformers (DTs)...')
     const transformers = []
-    for (let i = 0; i < 100; i++) {
-      const feeder = feeders[i % feeders.length]
-      const isMissingTopology = i >= 40 // 60% missing topology case
-      const dtLat = baseLat + (Math.floor(i / 10) * 0.005)
-      const dtLng = baseLng + ((i % 10) * 0.005)
+    const dtValues = []
+    const dtParams = []
+    let dtParamIdx = 1
 
-      const { rows } = await query(
-        `INSERT INTO transformers (feeder_id, name, code, pin_code, latitude, longitude, seq_on_line, parent_pole_id, topology_inferred)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [
-          feeder.id,
-          `DT-${feeder.code}-${i + 1}`,
-          `DT-${feeder.code}-${i + 1}`,
-          `5600${10 + (i % 80)}`,
-          dtLat,
-          dtLng,
-          isMissingTopology ? null : 1,
-          null,
-          isMissingTopology
-        ]
+    for (let i = 0; i < 412; i++) {
+      const feeder = feeders[i % feeders.length]
+      const isMissingTopology = i >= 165 // 60% missing topology case
+      const dtLat = baseLat + (Math.floor(i / 20) * 0.004)
+      const dtLng = baseLng + ((i % 20) * 0.004)
+      const pinCode = (i % 33 === 0) ? null : `5600${10 + (i % 80)}` // 3% missing PIN code edge case
+
+      dtValues.push(`($${dtParamIdx}, $${dtParamIdx+1}, $${dtParamIdx+2}, $${dtParamIdx+3}, $${dtParamIdx+4}, $${dtParamIdx+5}, $${dtParamIdx+6}, $${dtParamIdx+7}, $${dtParamIdx+8})`)
+      dtParams.push(
+        feeder.id,
+        `DT-${feeder.code}-${i + 1}`,
+        `DT-${feeder.code}-${i + 1}`,
+        pinCode,
+        dtLat,
+        dtLng,
+        isMissingTopology ? null : 1,
+        null,
+        isMissingTopology
       )
-      transformers.push(rows[0])
+      dtParamIdx += 9
     }
 
-    console.log('5. Bulk inserting 10,000 Poles in batch chunks...')
-    const totalPoles = 10000
-    const polesPerDT = 100
+    const { rows: insertedDts } = await query(
+      `INSERT INTO transformers (feeder_id, name, code, pin_code, latitude, longitude, seq_on_line, parent_pole_id, topology_inferred)
+       VALUES ${dtValues.join(', ')} RETURNING *`,
+      dtParams
+    )
+    transformers.push(...insertedDts)
+    console.log(`   Successfully created ${transformers.length} Distribution Transformers!`)
+
+    console.log('5. Bulk inserting 38,400 Poles in 1,000-record batch chunks...')
+    const totalPolesTarget = 38400
+    const polesPerDT = Math.ceil(totalPolesTarget / transformers.length) // ~93 poles per DT
     const poleValues = []
 
     for (let tIdx = 0; tIdx < transformers.length; tIdx++) {
       const dt = transformers[tIdx]
       const isMissingTopology = dt.topology_inferred
+      const angle = (tIdx * 17) * (Math.PI / 180) // Radial angle distribution
 
       for (let pSeq = 1; pSeq <= polesPerDT; pSeq++) {
-        const pLat = dt.latitude + (pSeq * 0.0002)
-        const pLng = dt.longitude + (pSeq * 0.0002)
+        if (poleValues.length >= totalPolesTarget) break
+
+        const pLat = dt.latitude + (Math.cos(angle) * pSeq * 0.00006)
+        const pLng = dt.longitude + (Math.sin(angle) * pSeq * 0.00006)
         const code = `P-${dt.code}-${String(pSeq).padStart(3, '0')}`
+        const polePinCode = (pSeq % 33 === 0) ? null : dt.pin_code // 3% missing PIN code simulation
 
         poleValues.push({
           transformer_id: dt.id,
           pole_code: code,
-          pin_code: dt.pin_code,
+          pin_code: polePinCode,
           latitude: pLat,
           longitude: pLng,
           seq_on_line: isMissingTopology ? null : pSeq,
@@ -90,7 +104,7 @@ async function seedLargeGrid() {
       }
     }
 
-    const chunkSize = 500
+    const chunkSize = 1000
     const insertedPoles = []
 
     for (let i = 0; i < poleValues.length; i += chunkSize) {
@@ -105,48 +119,30 @@ async function seedLargeGrid() {
         paramIdx += 7
       }
 
-      const queryText = `
-        INSERT INTO poles (transformer_id, pole_code, pin_code, latitude, longitude, seq_on_line, parent_pole_id)
-        VALUES ${valueTuples.join(', ')}
-        RETURNING id, transformer_id, pole_code, seq_on_line
-      `
-      const { rows } = await query(queryText, params)
+      const { rows } = await query(
+        `INSERT INTO poles (transformer_id, pole_code, pin_code, latitude, longitude, seq_on_line, parent_pole_id)
+         VALUES ${valueTuples.join(', ')}
+         RETURNING id, transformer_id, pole_code, seq_on_line`,
+        params
+      )
       insertedPoles.push(...rows)
-      console.log(`   Progress: inserted ${insertedPoles.length} / ${totalPoles} poles`)
-    }
-
-    const polesByDT = new Map()
-    for (const p of insertedPoles) {
-      if (!polesByDT.has(p.transformer_id)) polesByDT.set(p.transformer_id, [])
-      polesByDT.get(p.transformer_id).push(p)
-    }
-
-    for (const [dtId, pList] of polesByDT.entries()) {
-      pList.sort((a, b) => a.id - b.id)
-      for (let idx = 0; idx < pList.length; idx++) {
-        const parentId = idx === 0 ? null : pList[idx - 1].id
-        await query('UPDATE poles SET parent_pole_id = $1 WHERE id = $2', [parentId, pList[idx].id])
+      if (insertedPoles.length % 5000 === 0 || insertedPoles.length === poleValues.length) {
+        console.log(`   Progress: inserted ${insertedPoles.length.toLocaleString()} / ${poleValues.length.toLocaleString()} poles`)
       }
     }
 
-    console.log('6. Bulk inserting initial telemetry records (all live)...')
-    const telemetryRecords = insertedPoles.map(p => ({
-      device_id: `dev-${p.id}`,
-      pole_id: p.id,
-      seq: 100,
-      energized: true,
-      reported_at: new Date().toISOString()
-    }))
-
-    for (let i = 0; i < telemetryRecords.length; i += chunkSize) {
-      const chunk = telemetryRecords.slice(i, i + chunkSize)
+    console.log('6. Bulk inserting baseline live telemetry records (all energized)...')
+    for (let i = 0; i < insertedPoles.length; i += chunkSize) {
+      const chunk = insertedPoles.slice(i, i + chunkSize)
       const valueTuples = []
       const params = []
       let paramIdx = 1
+      const now = new Date().toISOString()
 
-      for (const t of chunk) {
+      for (const p of chunk) {
+        const seqVal = p.seq_on_line || 1
         valueTuples.push(`($${paramIdx}, $${paramIdx+1}, $${paramIdx+2}, $${paramIdx+3}, $${paramIdx+4})`)
-        params.push(t.device_id, t.pole_id, t.seq, t.energized, t.reported_at)
+        params.push(`dev-${p.id}`, p.id, seqVal, true, now)
         paramIdx += 5
       }
 
@@ -158,12 +154,24 @@ async function seedLargeGrid() {
       )
     }
 
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-    console.log(`Successfully seeded ${totalPoles} poles across ${transformers.length} Distribution Transformers!`)
-    console.log(`--- Large Scale Seeding Completed Successfully in ${duration}s ---`)
+    console.log('7. Inserting default active maintenance outage for testing...')
+    await query(`
+      INSERT INTO scheduled_outages (feeder_id, transformer_id, start_at, end_at, reason, active)
+      VALUES (1, NULL, NOW() - INTERVAL '1 hour', NOW() + INTERVAL '2 hours', 'Emergency Feeder Maintenance Window', TRUE);
+    `)
+
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(2)
+    console.log(`\n=================================================================`)
+    console.log(`✔ MASSIVE SCALE SEEDING COMPLETED IN ${durationSec}s!`)
+    console.log(`- Substations: 4`)
+    console.log(`- Feeders: 31`)
+    console.log(`- Distribution Transformers: 412`)
+    console.log(`- Monitored LT Poles: ${insertedPoles.length.toLocaleString()}`)
+    console.log(`- Total Grid Asset Nodes: ${(4 + 31 + 412 + insertedPoles.length).toLocaleString()}`)
+    console.log(`=================================================================\n`)
 
   } catch (error) {
-    console.error('Seeding Failed:', error)
+    console.error('❌ SEEDING FAILED:', error)
   } finally {
     await pool.end()
   }

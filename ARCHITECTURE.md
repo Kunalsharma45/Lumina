@@ -2,7 +2,7 @@
 
 ## 1. System Overview & Architecture Diagram
 
-Lumina is structured as a event-driven, micro-batch distribution grid monitoring platform. The architecture separates raw IoT ingestion from state processing, topological graph inference, and real-time operator visualization.
+Lumina is structured as an event-driven, micro-batch distribution grid monitoring platform scaled to handle **38,400+ LT poles** across **412 Distribution Transformers**, **31 Feeders**, and **4 Substations** (~43,847 total grid asset nodes). The architecture separates raw IoT ingestion from state processing, topological graph inference, and real-time operator visualization.
 
 ```mermaid
 flowchart TD
