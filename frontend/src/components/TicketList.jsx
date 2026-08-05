@@ -2,6 +2,7 @@ const statusTone = {
   DETECTED: "bg-amber-500/15 text-amber-200 border-amber-400/20",
   ACKNOWLEDGED: "bg-sky-500/15 text-sky-200 border-sky-400/20",
   CREW_ASSIGNED: "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/20",
+  RESOLVED: "bg-lime-500/15 text-lime-200 border-lime-400/20",
   VERIFIED: "bg-emerald-500/15 text-emerald-200 border-emerald-400/20",
   CLOSED: "bg-slate-500/15 text-slate-200 border-slate-400/20",
 };

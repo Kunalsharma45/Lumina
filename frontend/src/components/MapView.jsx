@@ -42,6 +42,17 @@ function MapController({ center, selectedTicketId, ticketsCount }) {
 }
 
 function getFaultStyle(ticket, isSelected) {
+  if (ticket.fault_type === 'FEEDER_FAULT') {
+    return {
+      color: isSelected ? '#FB923C' : '#F97316', // Bright Orange for 11 kV feeder failure
+      weight: isSelected ? 12 : 8,
+      dashArray: '18, 6',
+      opacity: 1,
+      label: '🔴 11 kV FEEDER FAULT — UPSTREAM HT FUSE',
+      badgeClass: 'bg-orange-100 text-orange-900 border border-orange-300',
+    };
+  }
+
   if (ticket.fault_type === 'DT_FAULT') {
     return {
       color: isSelected ? '#A855F7' : '#8B5CF6', // Deep Purple / Violet for Transformer Fuse Blow

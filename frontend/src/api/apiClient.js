@@ -89,6 +89,27 @@ export function injectFault(payload) {
   })
 }
 
+export function injectFaultWithPacketLoss(payload) {
+  return apiFetch('/api/simulator/inject-fault', {
+    method: 'POST',
+    body: JSON.stringify({ simulate_packet_loss: true, ...payload }),
+  })
+}
+
+export function injectFeederFault(payload) {
+  return apiFetch('/api/simulator/inject-feeder-fault', {
+    method: 'POST',
+    body: JSON.stringify(payload || {}),
+  })
+}
+
+export function injectDeadDeviceNoise() {
+  return apiFetch('/api/simulator/inject-dead-device', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+}
+
 export function createMockOutage(payload) {
   return apiFetch('/api/simulator/outages', {
     method: 'POST',

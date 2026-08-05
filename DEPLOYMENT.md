@@ -20,10 +20,11 @@ cd Lumina
 
 # 2. Launch Full Stack (PostgreSQL, Backend API, Frontend Console)
 docker compose up -d
-
-# 3. Seed 10,000 Grid Poles in PostgreSQL
-docker compose exec backend node scripts/seed_large_grid.js
 ```
+
+> **Auto-Seed**: On first boot, the backend automatically seeds **38,400 poles** across 412 DTs, 31 Feeders, and 4 Substations. Seeding takes ~45–60 seconds. The `⚡ Monitored Grid Poles` badge in the top bar will update once complete. **No manual step required.**
+
+> **Subsequent restarts**: `docker compose up -d` is a no-op for the seed — poles are only seeded when the database is empty.
 
 ### Option B: Local Manual Setup (Without Docker)
 
@@ -37,11 +38,9 @@ npm start
 cd frontend
 npm install
 npm run dev
-
-# 3. Seed 10,000 Poles into PostgreSQL
-cd backend
-node scripts/seed_large_grid.js
 ```
+
+> **Auto-Seed**: The backend auto-seeds the grid on startup when the database is empty. No separate seed command needed.
 
 ---
 

@@ -58,7 +58,8 @@ export default function TicketDetail({
 
   const isClosed = status === "CLOSED";
   const isVerified = status === "VERIFIED" || isClosed;
-  const isAssigned = status === "CREW_ASSIGNED" || isVerified;
+  const isResolved = status === "RESOLVED" || isVerified;
+  const isAssigned = status === "CREW_ASSIGNED" || isResolved;
   const isAcknowledged = status === "ACKNOWLEDGED" || isAssigned;
 
   const livePoleDisplay = ticket.last_live_pole_code || (ticket.last_live_pole_id ? `P-${ticket.last_live_pole_id}` : "—");
@@ -137,6 +138,7 @@ export default function TicketDetail({
             {isAssigned ? "✓ Crew Assigned" : "Assign Crew"}
           </button>
 
+          {/* BTN 3: REPAIR — sends restoration telemetry to trigger auto-verify */}
           <button
             type="button"
             disabled={busy || isVerified}
@@ -152,17 +154,36 @@ export default function TicketDetail({
             {isVerified ? "✓ Telemetry Power Restored" : "⚡ Repair & Send Restored Telemetry"}
           </button>
 
+          {/* BTN 4: MARK RESOLVED — crew's claim; telemetry auto-verifies separately */}
           <button
             type="button"
-            disabled={busy || isVerified}
+            disabled={busy || isResolved}
             onClick={() => runAction("resolve")}
             className={`rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${
-              isVerified
+              status === "CREW_ASSIGNED"
+                ? "bg-lime-500/25 text-lime-100 border-lime-400/40 hover:bg-lime-500/35"
+                : isResolved
                 ? "bg-slate-800/50 text-slate-400 border-slate-700"
-                : "bg-amber-500/15 text-amber-200 border-amber-400/20 hover:bg-amber-500/25"
+                : "bg-lime-500/15 text-lime-200 border-lime-400/20 hover:bg-lime-500/25"
             }`}
           >
-            Mark Resolved
+            {isResolved ? "✓ Crew Marked Resolved" : "Mark Resolved"}
+          </button>
+
+          {/* BTN 5: VERIFY — manual telemetry check (also fires automatically from ingest) */}
+          <button
+            type="button"
+            disabled={busy || isVerified || status !== "RESOLVED"}
+            onClick={() => runAction("verify")}
+            className={`rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${
+              status === "RESOLVED"
+                ? "bg-cyan-500/25 text-cyan-100 border-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.2)] hover:bg-cyan-500/35"
+                : isVerified
+                ? "bg-slate-800/50 text-slate-400 border-slate-700"
+                : "bg-cyan-500/10 text-cyan-400/50 border-cyan-700/30"
+            }`}
+          >
+            {isVerified ? "✓ Telemetry Verified" : "Verify via Telemetry"}
           </button>
 
           <button

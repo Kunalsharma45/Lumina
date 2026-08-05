@@ -74,7 +74,7 @@ flowchart TD
 - **`transformers`**: Distribution Transformers (DTs) with `seq_on_line` and `topology_inferred` flags.
 - **`poles`**: Distribution poles linked to transformers via `parent_pole_id` foreign keys and `seq_on_line` sequence indices.
 - **`telemetry`**: Monotonic IoT state table with `UNIQUE (device_id, seq)` constraint.
-- **`tickets` & `ticket_events`**: Incident tickets with lifecycle statuses (`DETECTED`, `ACKNOWLEDGED`, `CREW_ASSIGNED`, `VERIFIED`, `CLOSED`) and audit event logs.
+- **`tickets` & `ticket_events`**: Incident tickets with lifecycle statuses (`DETECTED`, `ACKNOWLEDGED`, `CREW_ASSIGNED`, `RESOLVED`, `VERIFIED`, `CLOSED`) and audit event logs.
 
 ---
 
@@ -82,6 +82,9 @@ flowchart TD
 
 ### Linear Boundary Traversal ($P_{\text{live}} \rightarrow P_{\text{dark}}$)
 For surveyed lines ($40\%$ explicit topology), poles are scanned in sequential line order ($1 \dots N$). The boundary is defined as the exact transition point where $P_k$ reports `energized: true` and $P_{k+1}$ reports `energized: false`. All downstream poles ($P_{k+1} \dots P_N$) are grouped into a **single incident ticket** to eliminate alert spam.
+
+### Feeder-Level Fault Aggregation (`FEEDER_FAULT`)
+After the per-DT detection loop, faults are cross-referenced by `feeder_id`. If $\geq 2$ DTs on the same feeder are all completely dark **and** they represent $\geq 50\%$ of that feeder's DT count, individual `DT_FAULT` tickets are suppressed and one `FEEDER_FAULT` ticket is emitted instead. This correctly models an 11 kV feeder trip or upstream HT fuse failure without flooding the operator board with N separate tickets.
 
 ### 60% Missing Topology Reconstruction (Prim's MST + BFS)
 When `topology_inferred = true` (`seq_on_line = NULL`):
@@ -95,8 +98,40 @@ When `topology_inferred = true` (`seq_on_line = NULL`):
 
 1. **Dead Sensor Candidate Filtering**:
    If an isolated pole reports `energized: false` while its parent pole and child poles report `energized: true`, the system flags it as a **Dead Sensor Candidate** (battery/firmware hardware glitch) and suppresses ticket generation.
-2. **Scheduled Maintenance (45-Minute Fuzzy Buffer)**:
+2. **Firmware 1.2 Silent Death Detection**:
+   Firmware 1.2 devices do not send `power_lost` events — they simply stop heartbeating. The system detects a device that has not sent a heartbeat in $>15 + 2$ minutes and treats its last-known `energized` state as expired-dark.
+3. **30% Packet Loss Realism**:
+   The fault simulator optionally drops 30% of dark-pole dying messages (per `02-data-and-systems.md §6.3`). Fault detection still succeeds because the boundary is identified from the poles that did send messages.
+4. **Scheduled Maintenance (45-Minute Fuzzy Buffer)**:
    If a scheduled outage window exists in `scheduled_outages`, outages during the window (plus a **45-minute fuzzy overrun grace period**) are suppressed. If poles continuously transmit live heartbeats during a scheduled window, **real telemetry overrides the calendar**.
+
+---
+
+## 6. Ticket Lifecycle & Autonomous Restoration Verification
+
+### Lifecycle States
+```
+DETECTED → ACKNOWLEDGED → CREW_ASSIGNED → RESOLVED → VERIFIED → CLOSED
+```
+
+| State | Who sets it | Description |
+|---|---|---|
+| `DETECTED` | System | Fault localised from telemetry |
+| `ACKNOWLEDGED` | Operator | Dispatcher has seen the ticket |
+| `CREW_ASSIGNED` | Operator | Field crew en route |
+| `RESOLVED` | Operator/Crew | Crew claims the span is fixed |
+| `VERIFIED` | **System (automatic)** | Telemetry confirms all downstream poles live |
+| `CLOSED` | Operator | Ticket archived after verification |
+
+### Two-Layer Auto-Verification (Brief Requirement)
+The system autonomously verifies restoration **without operator action** via two complementary mechanisms:
+
+1. **Ingest-Inline Check** (`telemetryController.js`): Every time a telemetry batch is ingested, if any `energized: true` messages are present, the system immediately scans all `CREW_ASSIGNED` / `RESOLVED` tickets and promotes any whose downstream poles are now fully live.
+
+2. **Restoration Watchdog** (`restorationWatchdog.js`): A `setInterval(30_000)` background loop polls the database every **30 seconds**, independently of ingestion events. This catches any gaps — e.g. restoration telemetry that arrived before the ticket was created, or heartbeat-only batches that bypassed the inline check.
+
+### Lying Lineman Protection
+If an operator clicks **Mark Resolved** before calling **Verify via Telemetry**, the `/verify` endpoint performs a real-time telemetry check. If downstream poles are still dark, the system returns `409 Conflict` and the ticket remains `RESOLVED` pending actual field repair.
 
 ---
 

@@ -63,6 +63,40 @@ async function findOpenTicketByBoundary(lastLivePoleId, firstDarkPoleId) {
   return rows[0] || null
 }
 
+async function findOpenFeederFaultTicket(feederId) {
+  // Looks up via JOIN since tickets table doesn't have a feeder_id column directly
+  const { rows } = await query(
+    `
+      SELECT t.*
+      FROM tickets t
+      JOIN poles p ON p.id = t.first_dark_pole_id
+      JOIN transformers tr ON tr.id = p.transformer_id
+      WHERE tr.feeder_id = $1
+        AND t.fault_type = 'FEEDER_FAULT'
+        AND t.status <> 'CLOSED'
+      ORDER BY t.created_at DESC
+      LIMIT 1
+    `,
+    [feederId],
+  )
+
+  return rows[0] || null
+}
+
+async function findTicketsAwaitingVerification() {
+  const { rows } = await query(
+    `
+      SELECT *
+      FROM tickets
+      WHERE status IN ('CREW_ASSIGNED', 'RESOLVED')
+        AND first_dark_pole_id IS NOT NULL
+      ORDER BY created_at ASC
+    `,
+  )
+
+  return rows
+}
+
 async function createDetectedTicket(fault, aiSummary = '') {
   return transaction(async (client) => {
     const ticketNumber = buildTicketNumber()
@@ -167,7 +201,9 @@ async function updateTicketStatus(ticketId, status, note = '') {
 module.exports = {
   addTicketEvent,
   createDetectedTicket,
+  findOpenFeederFaultTicket,
   findOpenTicketByBoundary,
+  findTicketsAwaitingVerification,
   getTicketById,
   listTickets,
   updateTicket,

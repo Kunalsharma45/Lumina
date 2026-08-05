@@ -14,17 +14,18 @@ cd Lumina
 docker compose up -d
 ```
 
-Once started:
-- **Operator Command Console**: [http://localhost:5173](http://localhost:5173)
-- **Backend API**: [http://localhost:3000](http://localhost:3000)
+Once started, open [http://localhost:5173](http://localhost:5173).
+
+> **Note**: On first boot, the backend automatically seeds **38,400 poles** across 412 DTs, 31 Feeders, and 4 Substations into PostgreSQL. This takes ~45–60 seconds. The map will show all poles once seeding completes. No manual step required (gate G3).
 
 ---
 
 ## 🌐 Live Public URL & Demo Video
 
-- **Deployed Live URL**: [http://localhost:5173](http://localhost:5173) *(Local Production Container)*
-- **Demo Video Walkthrough**: [Watch Lumina 5-Minute End-to-End Technical Demo](https://github.com/Kunalsharma45/Lumina)
-  > *Demonstrates grid seeding (10,000 poles), span break injection, Prim's MST topology inference, 409 Conflict "Lying Lineman" protection, and telemetry-enforced ticket closure.*
+- **Deployed Live URL**: *(To be added before submission — deploying to Render/Railway free tier)*
+- **Demo Video Walkthrough**: *(To be added before submission — 5-minute Loom/YouTube walkthrough)*
+
+  > Video demonstrates: grid seeding (38,400 poles), span break injection, Prim's MST topology inference, feeder fault (11 kV) aggregation, 409 Conflict "Lying Lineman" protection, and telemetry-enforced auto-verification via the 30-second restoration watchdog.
 
 ---
 
@@ -33,7 +34,7 @@ Once started:
 The repository documentation is split into 5 core engineering documents:
 
 1. **[README.md](README.md)** *(This File)*: High-level overview, quick start, live links, and repository guide.
-2. **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design, Mermaid dataflow diagrams, high-throughput pipeline (43,800 records), sequence deduplication, Prim's MST ($O(V^2)$) graph reconstruction, noise filtering, API reference, and LLM justification.
+2. **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design, Mermaid dataflow diagrams, high-throughput pipeline (38,400 records), sequence deduplication, Prim's MST ($O(V^2)$) graph reconstruction, FEEDER_FAULT aggregation, two-layer auto-verification watchdog, noise filtering, API reference, and LLM justification.
 3. **[DEPLOYMENT.md](DEPLOYMENT.md)**: Prerequisites, step-by-step startup, environment variables, verification checklist, real-world troubleshooting guide, and environment reset procedures.
 4. **[DECISIONS.md](DECISIONS.md)**: Chronological design log, technical trade-offs, documented brief assumptions, 2-week future roadmap, and honest fragile points.
 5. **[AI-WORKFLOW.md](AI-WORKFLOW.md)**: AI tool usage audit, delegation breakdown, concrete AI failure modes caught & corrected, and percentage estimates.
@@ -42,10 +43,16 @@ The repository documentation is split into 5 core engineering documents:
 
 ## ✨ Key Features & Edge Case Highlights
 
-- **10,000-Pole Scalability**: Handles 10,000 distribution poles across 100 Distribution Transformers (DTs), 20 Feeders, and 4 Substations.
+- **38,400-Pole Scalability**: Handles 38,400 distribution poles across 412 Distribution Transformers (DTs), 31 Feeders, and 4 Substations.
+- **Auto-Seeded on First Boot**: `docker compose up -d` seeds the full grid automatically — no manual step required.
 - **60% Missing Topology Reconstruction**: Runs Prim's Minimum Spanning Tree (MST) + Breadth-First Search (BFS) graph orientation for unmapped distribution lines.
+- **FEEDER_FAULT Detection**: When ≥50% of DTs on a feeder are simultaneously dark, individual DT_FAULT tickets are aggregated into a single **FEEDER_FAULT** ticket, correctly modelling an 11 kV feeder trip or upstream HT fuse failure.
+- **Autonomous Restoration Verification (Two Layers)**:
+  1. **Ingest-Inline**: Every time restoration telemetry arrives, the system immediately promotes any CREW_ASSIGNED/RESOLVED ticket whose downstream poles are now live.
+  2. **30-Second Watchdog**: `setInterval(30_000)` background loop catches any gaps — restoration without requiring the operator to click anything.
 - **Sequence-Based Deduplication**: Ignores clock skew (±90s) by relying on monotonic integer sequence ordering (`seq`).
-- **"Lying Lineman" Safety Enforcement**: Returns `409 Conflict` if an operator attempts to close a ticket while backend telemetry confirms poles remain dark.
+- **"Lying Lineman" Safety Enforcement**: Returns `409 Conflict` if an operator attempts to verify a ticket while backend telemetry confirms poles remain dark.
+- **30% Packet Loss Simulation**: The fault simulator optionally drops 30% of dying-pole messages and silences 8% as firmware 1.2 devices, matching the real-world protocol described in `02-data-and-systems.md §6.3`.
 - **45-Minute Fuzzy Load Shedding Grace Period**: Suppresses false alarm tickets during scheduled maintenance overruns.
-- **Multi-Category Map Color Coding**: Visual distinction between Span Breaks (Dashed Red `#EF4444`), Fuse Blows (Deep Purple `#8B5CF6`), and Sensor Glitches (Amber `#F59E0B`).
-- **60 FPS Hardware-Accelerated Canvas**: Employs Leaflet `preferCanvas={true}` GPU context for smooth panning/zooming.
+- **Multi-Category Map Color Coding**: Visual distinction between Feeder Faults (Orange `#F97316`, dashed `18,6`), DT Fuse Blows (Deep Purple `#8B5CF6`, dashed `12,6`), Span Breaks (Dashed Red `#EF4444`, dashed `5,10`), and Sensor Glitches (Amber `#F59E0B`).
+- **60 FPS Hardware-Accelerated Canvas**: Employs Leaflet `preferCanvas={true}` GPU context for smooth panning/zooming at 38,400-pole scale.

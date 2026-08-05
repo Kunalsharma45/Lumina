@@ -293,10 +293,25 @@ async function seedSyntheticGrid(req, res, next) {
   }
 }
 
-async function generateTelemetryForTree(poles, breakAfterSeq) {
+async function generateTelemetryForTree(poles, breakAfterSeq, { simulatePacketLoss = false } = {}) {
+  const FW12_RATIO = 0.08        // 8% of fleet is firmware 1.2 — goes quiet, no dying message
+  const PACKET_LOSS_RATIO = 0.30 // 30% of dark-pole dying messages never arrive
+
   const messages = poles.map((pole, idx) => {
     const seqVal = pole.seq_on_line != null ? pole.seq_on_line : (idx + 1)
     const isEnergized = seqVal <= breakAfterSeq
+    const isFw12Device = Math.random() < FW12_RATIO // hoisted so it's available in raw_payload
+
+    // Realism: dark poles may not send a message at all
+    if (!isEnergized && simulatePacketLoss) {
+      const packetDropped = Math.random() < PACKET_LOSS_RATIO
+
+      if (isFw12Device || packetDropped) {
+        // This pole goes dark but its message is never received.
+        // The fault detection will catch it via the 15-min heartbeat timeout (Silent Death).
+        return null
+      }
+    }
 
     return {
       device_id: `dev-${pole.id}`,
@@ -308,12 +323,14 @@ async function generateTelemetryForTree(poles, breakAfterSeq) {
         pole_id: pole.id,
         seq: seqVal,
         energized: isEnergized,
+        fw: isFw12Device ? '1.2.0' : '1.4.2',
       },
     }
-  })
+  }).filter(Boolean)
 
   return bulkUpsertTelemetry(messages)
 }
+
 
 async function injectFault(req, res, next) {
   try {
@@ -321,6 +338,7 @@ async function injectFault(req, res, next) {
       transformer_id,
       break_after_seq = 3,
       reason = 'Synthetic span fault injected for testing',
+      simulate_packet_loss = false,
     } = req.body || {}
 
     if (!transformer_id) {
@@ -364,7 +382,11 @@ async function injectFault(req, res, next) {
       return res.status(404).json({ message: 'No synthetic tree found for this transformer' })
     }
 
-    const insertedTelemetry = await generateTelemetryForTree(poleRows, Number(break_after_seq))
+    const insertedTelemetry = await generateTelemetryForTree(
+      poleRows,
+      Number(break_after_seq),
+      { simulatePacketLoss: Boolean(simulate_packet_loss) }
+    )
 
     const { detectFaults } = require('../services/faultDetectionService')
     const { inferPoleTopology } = require('../services/graphBuilderService')
@@ -387,6 +409,9 @@ async function injectFault(req, res, next) {
       message: reason,
       transformer_id,
       break_after_seq: Number(break_after_seq),
+      packet_loss_simulated: Boolean(simulate_packet_loss),
+      messages_sent: insertedTelemetry.length,
+      messages_dropped: poleRows.length - insertedTelemetry.length,
       telemetry: insertedTelemetry,
       ticket: createdTicket,
     })
@@ -569,6 +594,126 @@ async function repairFault(req, res, next) {
   }
 }
 
+async function injectFeederFault(req, res, next) {
+  try {
+    // Pick a random feeder that has >= 2 DTs and inject DT_FAULT on all of them
+    const { rows: feederRows } = await query(
+      `SELECT feeder_id, COUNT(*) AS dt_count
+       FROM transformers
+       GROUP BY feeder_id
+       HAVING COUNT(*) >= 2
+       ORDER BY RANDOM()
+       LIMIT 1`
+    )
+
+    if (!feederRows.length) {
+      return res.status(404).json({ message: 'No feeder found with >= 2 transformers' })
+    }
+
+    const feederId = feederRows[0].feeder_id
+    const { rows: dtRows } = await query(
+      `SELECT id, code FROM transformers WHERE feeder_id = $1 ORDER BY id`,
+      [feederId]
+    )
+
+    const ticketModel = require('../models/ticketModel')
+    const { detectFaults } = require('../services/faultDetectionService')
+    const { inferPoleTopology } = require('../services/graphBuilderService')
+
+    const dtFaults = []
+    for (const dt of dtRows) {
+      const { rows: poleRows } = await query(
+        `SELECT * FROM poles WHERE transformer_id = $1 ORDER BY seq_on_line, id`,
+        [dt.id]
+      )
+      if (!poleRows.length) continue
+
+      // All poles dark = DT fault, which will then aggregate to FEEDER_FAULT
+      const telemetry = await generateTelemetryForTree(poleRows, 0)
+      const orderedPoles = poleRows.some((p) => p.seq_on_line == null)
+        ? inferPoleTopology(poleRows, dt)
+        : poleRows
+
+      const faults = detectFaults({ poles: orderedPoles, telemetry, transformer: dt, feeder_id: feederId })
+      if (faults.length > 0) {
+        dtFaults.push(...faults)
+      }
+    }
+
+    // Aggregate into single FEEDER_FAULT ticket
+    const existingFeederTicket = await ticketModel.findOpenFeederFaultTicket(feederId)
+    let feederTicket = existingFeederTicket
+
+    if (!existingFeederTicket && dtFaults.length >= 2) {
+      const totalDownstream = dtFaults.reduce((sum, f) => sum + f.downstream_pole_count, 0)
+      const firstFault = dtFaults[0]
+      const feederFault = {
+        fault_type: 'FEEDER_FAULT',
+        feeder_id: feederId,
+        last_live_pole_id: null,
+        first_dark_pole_id: firstFault.first_dark_pole_id,
+        downstream_pole_count: totalDownstream,
+        confidence: 0.98,
+        confidence_reason: `${dtFaults.length} of ${dtRows.length} distribution transformers on feeder #${feederId} are completely dark — 11 kV feeder fault or upstream HT fuse failure likely.`,
+        pin_code: firstFault.pin_code,
+        latitude: firstFault.latitude,
+        longitude: firstFault.longitude,
+        topology_inferred: false,
+      }
+      feederTicket = await ticketModel.createDetectedTicket(feederFault, `11 kV feeder fault injected on feeder #${feederId}`)
+    }
+
+    res.status(201).json({
+      message: `11 kV feeder fault injected: ${dtRows.length} DTs on feeder #${feederId} all dark`,
+      feeder_id: feederId,
+      affected_transformers: dtRows.map((d) => d.code),
+      ticket: feederTicket,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function injectDeadDeviceNoise(req, res, next) {
+  try {
+    // Kill one random device's telemetry while power stays on everywhere else.
+    // This simulates a dead modem / water ingress / expired SIM — should NOT generate a fault ticket.
+    const { rows: poleRows } = await query(
+      `SELECT p.* FROM poles p
+       LEFT JOIN telemetry t ON t.pole_id = p.id
+       WHERE t.id IS NOT NULL
+       ORDER BY RANDOM() LIMIT 1`
+    )
+
+    if (!poleRows.length) {
+      return res.status(404).json({ message: 'No poles with telemetry found. Run Seed Grid first.' })
+    }
+
+    const pole = poleRows[0]
+    // Simply stop sending heartbeats — we do this by inserting a very stale last heartbeat
+    // so the Silent Death timeout logic will eventually flag it, but since children are live
+    // the dead-sensor filter will suppress the ticket.
+    const staleTime = new Date(Date.now() - 20 * 60 * 1000).toISOString() // 20 min ago
+    await bulkUpsertTelemetry([{
+      device_id: `dev-${pole.id}`,
+      pole_id: pole.id,
+      seq: Date.now(),
+      energized: false, // Device goes silent — no more heartbeats
+      reported_at: staleTime,
+      raw_payload: { event: 'device_silent', fw: '1.2.0', note: 'Fw1.2 device — last heartbeat expired' },
+    }])
+
+    res.status(201).json({
+      message: `Dead device noise injected on pole #${pole.id} (${pole.pole_code}). This is a firmware 1.2 / dead modem scenario. The dead-sensor filter should suppress any fault ticket.`,
+      pole_id: pole.id,
+      pole_code: pole.pole_code,
+      suppressed: true,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 async function injectSpanFault(req, res, next) {
   try {
     const { rows: dts } = await query(`SELECT * FROM transformers WHERE topology_inferred = FALSE LIMIT 1`)
@@ -597,6 +742,8 @@ async function injectSpanFault(req, res, next) {
 module.exports = {
   createMockOutage,
   createScenario,
+  injectDeadDeviceNoise,
+  injectFeederFault,
   injectFault,
   injectSpanFault,
   repairFault,

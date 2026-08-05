@@ -88,16 +88,35 @@ async function findPolesByTransformerIds(transformerIds = []) {
 }
 
 async function findDownstreamPolesFromBoundary(firstDarkPoleId) {
-  const { rows: boundaryRows } = await query(
+  // Attempt recursive CTE traversal via parent_pole_id foreign key links first.
+  // This correctly handles branching topologies where parent_pole_id is populated.
+  const { rows: cteRows } = await query(
     `
-      SELECT id, transformer_id, seq_on_line
-      FROM poles
-      WHERE id = $1
+      WITH RECURSIVE downstream AS (
+        SELECT id, transformer_id, seq_on_line, parent_pole_id, latitude, longitude, pin_code, pole_code, topology_inferred, is_active
+        FROM poles
+        WHERE id = $1
+        UNION ALL
+        SELECT p.id, p.transformer_id, p.seq_on_line, p.parent_pole_id, p.latitude, p.longitude, p.pin_code, p.pole_code, p.topology_inferred, p.is_active
+        FROM poles p
+        INNER JOIN downstream d ON p.parent_pole_id = d.id
+      )
+      SELECT * FROM downstream
+      ORDER BY COALESCE(seq_on_line, 2147483647), id
     `,
     [firstDarkPoleId],
   )
 
-  const boundary = boundaryRows[0]
+  // If the CTE returned more than just the boundary pole itself, parent_pole_id links exist
+  // and the recursive walk is reliable.
+  if (cteRows.length > 1) {
+    return cteRows
+  }
+
+  // Fall back: no parent_pole_id links in DB (bulk-seeded grid with inferred topology).
+  // Use the seq_on_line range scan — for inferred poles (seq_on_line = NULL) this returns
+  // all poles in the transformer, which is the correct conservative set for restoration checks.
+  const boundary = cteRows[0]
   if (!boundary) {
     return []
   }
@@ -106,7 +125,8 @@ async function findDownstreamPolesFromBoundary(firstDarkPoleId) {
     `
       SELECT *
       FROM poles
-      WHERE transformer_id = $1 AND COALESCE(seq_on_line, 2147483647) >= COALESCE($2, 1)
+      WHERE transformer_id = $1
+        AND COALESCE(seq_on_line, 2147483647) >= COALESCE($2, 1)
       ORDER BY COALESCE(seq_on_line, 2147483647), id
     `,
     [boundary.transformer_id, boundary.seq_on_line],
@@ -115,7 +135,17 @@ async function findDownstreamPolesFromBoundary(firstDarkPoleId) {
   return rows
 }
 
+async function countTransformersByFeederId(feederId) {
+  const { rows } = await query(
+    `SELECT COUNT(*) AS total FROM transformers WHERE feeder_id = $1`,
+    [feederId],
+  )
+
+  return Number(rows[0]?.total || 0)
+}
+
 module.exports = {
+  countTransformersByFeederId,
   findDownstreamPolesFromBoundary,
   findPolesByIds,
   findPolesByTransformerIds,

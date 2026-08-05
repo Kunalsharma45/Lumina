@@ -12,6 +12,8 @@ const telemetryModel = require('../src/models/telemetryModel')
 async function run10kStressTest() {
   console.log('=== STARTING 10,000 POLE FULL-ASPECT STRESS & EDGE CASE TEST ===\n')
 
+  const totalStart = process.hrtime.bigint()
+
   try {
     // 1. Fetch poles from database
     const { rows: dt1Poles } = await query(`SELECT * FROM poles WHERE transformer_id = 1 ORDER BY seq_on_line LIMIT 500`)
@@ -30,7 +32,13 @@ async function run10kStressTest() {
       reported_at: new Date().toISOString()
     }))
 
+    const ingestStart = process.hrtime.bigint()
     await telemetryModel.bulkUpsertTelemetry(telemetryDT1)
+    const ingestEnd = process.hrtime.bigint()
+    const ingestMs = Number(ingestEnd - ingestStart) / 1_000_000
+    const msPerMsg = (ingestMs / telemetryDT1.length).toFixed(3)
+    const msgsPerSec = Math.round(telemetryDT1.length / (ingestMs / 1000))
+    console.log(`  ⏱  Ingest: ${ingestMs.toFixed(1)} ms for ${telemetryDT1.length} records → ${msPerMsg} ms/record | ${msgsPerSec.toLocaleString()} records/sec`)
     const faultsDT1 = detectFaults({ poles: dt1Poles, telemetry: telemetryDT1 })
     console.log(`-> Detected ${faultsDT1.length} fault(s) on DT-1. Boundary: Pole ${faultsDT1[0]?.last_live_pole_id} -> Pole ${faultsDT1[0]?.first_dark_pole_id}`)
 
@@ -77,6 +85,14 @@ async function run10kStressTest() {
     }
 
     console.log('\n=== 10,000 POLE STRESS & EDGE CASE TESTS COMPLETED SUCCESSFULLY! ===')
+
+    const totalEnd = process.hrtime.bigint()
+    const totalMs = Number(totalEnd - totalStart) / 1_000_000
+    console.log(`\n📊 PERFORMANCE SUMMARY:`)
+    console.log(`  Total test runtime   : ${totalMs.toFixed(0)} ms`)
+    console.log(`  Ingest throughput    : ${msgsPerSec.toLocaleString()} records/sec (DT-1 benchmark)`)
+    console.log(`  Per-record latency   : ${msPerMsg} ms/record`)
+    console.log(`  \nNote: Copy these numbers into ARCHITECTURE.md §2 as measured throughput data.`)
   } catch (error) {
     console.error('❌ STRESS TEST FAILED:', error)
   } finally {

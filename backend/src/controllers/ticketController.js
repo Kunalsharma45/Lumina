@@ -58,28 +58,15 @@ async function resolveTicket(req, res, next) {
       return res.status(404).json({ message: 'Ticket not found' })
     }
 
-    const downstreamPoles = await poleModel.findDownstreamPolesFromBoundary(ticket.first_dark_pole_id)
-    const latestTelemetry = await telemetryModel.getLatestTelemetryByPoleIds(downstreamPoles.map((pole) => pole.id))
-    const telemetryByPoleId = new Map(latestTelemetry.map((record) => [String(record.pole_id), record]))
-    const allLive = downstreamPoles.every((pole) => telemetryByPoleId.get(String(pole.id))?.energized === true)
-
-    if (!allLive) {
-      return res.status(409).json({
-        message: 'Resolution rejected: backend telemetry confirms affected poles are still dark',
-        ticket,
-      })
-    }
-
-    const summary = generateDispatchSummary(ticket)
+    // RESOLVED = crew's claim that they fixed it. Telemetry verification happens separately via /verify
+    // or automatically via the ingest pipeline when restoration messages arrive.
     const updatedTicket = await ticketModel.updateTicket(ticket.id, {
-      status: 'VERIFIED',
+      status: 'RESOLVED',
       resolved_at: new Date(),
-      verified_at: new Date(),
-      ai_summary: ticket.ai_summary || summary,
       updated_at: new Date(),
     })
 
-    await ticketModel.addTicketEvent(ticket.id, 'VERIFIED', 'Telemetry confirmed restoration')
+    await ticketModel.addTicketEvent(ticket.id, 'RESOLVED', req.body?.note || 'Crew marked span as fixed — awaiting telemetry verification')
     res.json({ ticket: updatedTicket })
   } catch (error) {
     next(error)

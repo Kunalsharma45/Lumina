@@ -81,7 +81,7 @@ function buildConfidence(darkRunLength, totalAffected, topologyInferred) {
   return topologyInferred ? Math.max(0.55, baseConfidence - 0.08) : baseConfidence
 }
 
-function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], observedAt = Date.now(), transformer = null }) {
+function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], observedAt = Date.now(), transformer = null, feeder_id = null }) {
   if (!poles.length) {
     return []
   }
@@ -154,6 +154,7 @@ function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], obser
         const topologyInferred = orderedPoles.some((currentPole) => currentPole.topology_inferred) || Boolean(transformer?.topology_inferred)
         faults.push({
           fault_type: 'DT_FAULT',
+          feeder_id: feeder_id || transformer?.feeder_id || null,
           last_live_pole_id: null,
           first_dark_pole_id: pole.id,
           downstream_pole_count: orderedPoles.length,
@@ -176,6 +177,7 @@ function detectFaults({ poles = [], telemetry = [], scheduledOutages = [], obser
 
     faults.push({
       fault_type: 'SPAN_BREAK',
+      feeder_id: feeder_id || transformer?.feeder_id || null,
       last_live_pole_id: lastLivePole?.id ?? null,
       first_dark_pole_id: firstDarkPole.id,
       downstream_pole_count: affectedPoles.length,
