@@ -11,6 +11,11 @@ This document records the technical trade-offs, design choices, documented assum
 - **Rejected**: Single uniform red line marker for all fault types.
 - **Rationale**: Control room operators must diagnose failure modes (wire snap vs fuse blow vs dead sensor) instantly at a glance.
 
+### Decision 8: Explicit Asset Marker Symbology & Minimization (2026-08-05)
+- **Chosen**: Tiny 12px blue squares for Transformers (DTs), compact orange building SVGs for Substations, and highly reduced 4px green dots for Poles.
+- **Rejected**: Large universally sized asset markers (e.g. 40px SVGs).
+- **Rationale**: An overwhelming number of large, complex SVGs across a 38,400-node network flooded the operator's screen, making the map unreadable. Drastically minimizing asset footprint preserves topological clarity while ensuring substations and transformers remain distinct.
+
 ### Decision 7: HTML5 GPU Canvas Acceleration (`preferCanvas={true}`) (2026-08-04)
 - **Chosen**: Leaflet `<MapContainer preferCanvas={true}>`.
 - **Rejected**: Standard Leaflet SVG DOM node rendering.

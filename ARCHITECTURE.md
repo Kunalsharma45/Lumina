@@ -151,7 +151,9 @@ If an operator clicks **Mark Resolved** before calling **Verify via Telemetry**,
 ## 7. UI Reasoning & Visual Color-Coding Matrix
 
 ### Visual Color Coding Rules
-- **🟢 Working Lines / Poles (`#10B981`)**: Emerald green dots & solid lines for healthy energized infrastructure.
+- **🏢 Substations (11kV)**: Bright orange building/house SVGs representing the primary power source for feeders.
+- **🟦 Transformers (DTs)**: Small blue square SVGs, distinguishing them from standard poles while preventing map clutter.
+- **🟢 Working Lines / Poles (`#10B981`)**: Tiny emerald green dots (rendered on Canvas) & solid lines for healthy energized infrastructure.
 - **💥 Wire Breaks / Span Snaps (`#EF4444`, `dashArray: '5, 10'`)**: Dashed red lines & markers at localized boundaries.
 - **⚡ Blown Transformer Fuses / DT Faults (`#8B5CF6`, `dashArray: '12, 6'`)**: Deep purple/violet casing lines for 100% transformer zone failures.
 - **⚠️ Hardware Sensor Glitches (`#F59E0B`)**: Amber yellow warning markers for hardware communication dropouts.
