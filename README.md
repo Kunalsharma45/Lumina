@@ -56,3 +56,16 @@ The repository documentation is split into 5 core engineering documents:
 - **45-Minute Fuzzy Load Shedding Grace Period**: Suppresses false alarm tickets during scheduled maintenance overruns.
 - **Multi-Category Map Color Coding**: Visual distinction between Feeder Faults (Orange `#F97316`, dashed `18,6`), DT Fuse Blows (Deep Purple `#8B5CF6`, dashed `12,6`), Span Breaks (Dashed Red `#EF4444`, dashed `5,10`), and Sensor Glitches (Amber `#F59E0B`).
 - **60 FPS Hardware-Accelerated Canvas**: Employs Leaflet `preferCanvas={true}` GPU context for smooth panning/zooming at 38,400-pole scale.
+
+---
+
+## 🎛️ Fault Simulator & Testing Controls
+
+The operator console includes a built-in testing panel with 6 main action buttons to simulate different real-world power grid scenarios:
+
+1. **Seed Grid Data**: Wipes the database and regenerates the full topological grid (4 Substations, 31 Feeders, 412 Transformers, and 38,400 Poles).
+2. **Inject Span Break**: Simulates a physical wire snap between two poles. Injects downstream `energized: false` telemetry to trigger a `SPAN_BREAK` fault ticket and render a red fault boundary.
+3. **Feeder Fault (11 kV)**: Trips an entire 11 kV feeder line, aggressively darkening a massive swath of transformers and aggregating them into a single high-priority `FEEDER_FAULT` ticket.
+4. **Monsoon Scenario**: Simulates a severe weather event with 30% packet loss. Tests the system's resilience to missing telemetry and ensures out-of-order sequence processing still correctly localizes the fault boundary.
+5. **Load Shedding**: Initiates a scheduled rolling blackout. Suppresses standard alarms and enforces a 45-minute fuzzy grace period to prevent false positive tickets during maintenance.
+6. **Dead Device (Fw1.2)**: Simulates a legacy firmware 1.2 IoT sensor failure. The pole dies instantly without transmitting a final "dying gasp", triggering a specific `DEAD_SENSOR` amber warning ticket instead of a standard wire snap fault.
