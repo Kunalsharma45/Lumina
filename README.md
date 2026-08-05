@@ -22,7 +22,7 @@ Once started, open [http://localhost:5173](http://localhost:5173).
 
 ## 🌐 Live Public URL & Demo Video
 
-- **Deployed Live URL**: *(To be added before submission — deploying to Render/Railway free tier)*
+- **Deployed Live URL**: [https://lumina-mu-one.vercel.app](https://lumina-mu-one.vercel.app)
 - **Demo Video Walkthrough**: *(To be added before submission — 5-minute Loom/YouTube walkthrough)*
 
   > Video demonstrates: grid seeding (38,400 poles), span break injection, Prim's MST topology inference, feeder fault (11 kV) aggregation, 409 Conflict "Lying Lineman" protection, and telemetry-enforced auto-verification via the 30-second restoration watchdog.
