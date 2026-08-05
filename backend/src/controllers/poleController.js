@@ -35,12 +35,17 @@ async function listPoles(req, res, next) {
     )
     const { rows: countRows } = await query(`SELECT count(*) FROM poles`)
 
+    const { rows: transformersRows } = await query(`SELECT id, name, code, latitude, longitude, true as energized FROM transformers`)
+    const { rows: substationsRows } = await query(`SELECT id, name, code, latitude, longitude FROM substations`)
+
     res.json({
       total: Number(countRows[0].count),
       returned: rows.length,
       limit,
       offset,
       poles: rows,
+      transformers: transformersRows,
+      substations: substationsRows,
     })
   } catch (error) {
     next(error)

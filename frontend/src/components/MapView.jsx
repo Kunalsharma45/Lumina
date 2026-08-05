@@ -150,6 +150,41 @@ function getFaultIcon(ticket, isSelected) {
   });
 }
 
+function getTransformerIcon() {
+  const iconHtml = `
+    <div class="flex h-5 w-5 items-center justify-center rounded-[4px] bg-purple-600 border border-purple-900 text-white shadow-md ring-1 ring-purple-300">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5">
+        <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" />
+      </svg>
+    </div>
+  `;
+  return L.divIcon({
+    html: iconHtml,
+    className: 'bg-transparent border-none',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+    popupAnchor: [0, -10],
+  });
+}
+
+function getSubstationIcon() {
+  const iconHtml = `
+    <div class="flex h-7 w-7 items-center justify-center rounded-md bg-orange-500 border border-orange-900 text-white shadow-lg ring-2 ring-orange-300">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+        <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+        <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" />
+      </svg>
+    </div>
+  `;
+  return L.divIcon({
+    html: iconHtml,
+    className: 'bg-transparent border-none',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
+  });
+}
+
 
 function MarkerContent({ ticket }) {
   const isInferred = Boolean(ticket.topology_inferred);
@@ -217,6 +252,8 @@ function MarkerContent({ ticket }) {
 
 export default function MapView({ tickets, selectedTicket, onSelectTicket, refreshKey }) {
   const [gridPoles, setGridPoles] = useState([]);
+  const [transformers, setTransformers] = useState([]);
+  const [substations, setSubstations] = useState([]);
   const [showGridPoles, setShowGridPoles] = useState(true);
   const [totalPolesCount, setTotalPolesCount] = useState(38400);
 
@@ -225,6 +262,12 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
       .then((res) => {
         if (res && res.poles) {
           setGridPoles(res.poles);
+        }
+        if (res && res.transformers) {
+          setTransformers(res.transformers);
+        }
+        if (res && res.substations) {
+          setSubstations(res.substations);
         }
         if (res && res.total) {
           setTotalPolesCount(res.total);
@@ -284,7 +327,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
           maxZoom={19}
         />
 
-        {/* Grid Poles Infrastructure Layer (Canvas Accelerated: Green = Working, Red = Fault/Dark) */}
+        {/* Grid Poles Infrastructure Layer (Canvas Accelerated: Gray = Working, Red = Fault/Dark) */}
         {showGridPoles
           ? gridPoles.slice(0, 800).map((pole) => {
               const isWorking = pole.energized !== false;
@@ -292,12 +335,12 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                 <CircleMarker
                   key={`grid-pole-${pole.id}`}
                   center={[Number(pole.latitude), Number(pole.longitude)]}
-                  radius={isWorking ? 3.5 : 5}
+                  radius={isWorking ? 1.5 : 4} // Simple, small, thin circle/dot
                   pathOptions={{
-                    color: isWorking ? "#059669" : "#dc2626",
-                    fillColor: isWorking ? "#10b981" : "#ef4444",
-                    fillOpacity: isWorking ? 0.85 : 1,
-                    weight: isWorking ? 1 : 2,
+                    color: isWorking ? "#3f3f46" : "#dc2626", // zinc-700 (gray/black)
+                    fillColor: isWorking ? "#71717a" : "#ef4444", // zinc-500
+                    fillOpacity: isWorking ? 0.7 : 1,
+                    weight: isWorking ? 0.8 : 2, // Thin boundary
                   }}
                 >
                   <Popup autoPan={false}>
@@ -305,7 +348,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
                       <div className="flex items-center justify-between gap-2 border-b pb-1">
                         <span className="font-bold text-slate-900">{pole.pole_code}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          isWorking ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          isWorking ? 'bg-slate-100 text-slate-800' : 'bg-rose-100 text-rose-800'
                         }`}>
                           {isWorking ? '✓ WORKING (ENERGIZED)' : '⚠️ DARK (FAULT)'}
                         </span>
@@ -318,6 +361,48 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
               );
             })
           : null}
+
+        {/* Transformer Layer */}
+        {showGridPoles && transformers.map((transformer) => (
+          <Marker
+            key={`transformer-${transformer.id}`}
+            position={[Number(transformer.latitude), Number(transformer.longitude)]}
+            icon={getTransformerIcon()}
+          >
+            <Popup autoPan={false}>
+              <div className="p-1 text-xs font-sans text-slate-800">
+                <div className="flex items-center justify-between gap-2 border-b pb-1">
+                  <span className="font-bold text-slate-900">{transformer.code}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">
+                    TRANSFORMER (DT)
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{transformer.name}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Substation Layer */}
+        {showGridPoles && substations.map((substation) => (
+          <Marker
+            key={`substation-${substation.id}`}
+            position={[Number(substation.latitude), Number(substation.longitude)]}
+            icon={getSubstationIcon()}
+          >
+            <Popup autoPan={false}>
+              <div className="p-1 text-xs font-sans text-slate-800">
+                <div className="flex items-center justify-between gap-2 border-b pb-1">
+                  <span className="font-bold text-slate-900">{substation.code}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">
+                    SUBSTATION (11kV)
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{substation.name}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
         {processedMapTickets.map((ticket) => {
           const isSelected = selectedTicket?.id === ticket.id;
