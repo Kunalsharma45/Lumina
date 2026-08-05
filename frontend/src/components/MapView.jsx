@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import L from "leaflet";
 import { CircleMarker, MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
 import { getPoles } from "../api/apiClient";
+
+// Fix Leaflet's default icon paths for Vite/Vercel production builds
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 const defaultCenter = [12.9716, 77.5946];
 
@@ -85,6 +98,58 @@ function getFaultStyle(ticket, isSelected) {
     badgeClass: 'bg-rose-100 text-rose-900 border border-rose-300',
   };
 }
+
+function getFaultIcon(ticket, isSelected) {
+  let iconHtml = '';
+  const ringClass = isSelected ? 'ring-4 ring-offset-2' : 'ring-2 ring-offset-1 hover:ring-4';
+
+  if (ticket.fault_type === 'FEEDER_FAULT') {
+    // Orange Substation / Lightning Bolt
+    iconHtml = `
+      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 border-2 border-orange-500 text-orange-600 shadow-lg ${isSelected ? 'ring-orange-400' : 'ring-orange-300'} ${ringClass} transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+          <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" />
+        </svg>
+      </div>
+    `;
+  } else if (ticket.fault_type === 'DT_FAULT') {
+    // Purple Transformer Box / Industrial Icon
+    iconHtml = `
+      <div class="flex h-10 w-10 items-center justify-center rounded-md bg-purple-100 border-2 border-purple-500 text-purple-600 shadow-lg ${isSelected ? 'ring-purple-400' : 'ring-purple-300'} ${ringClass} transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+          <path d="M2 4.5A2.5 2.5 0 014.5 2h15A2.5 2.5 0 0122 4.5v15a2.5 2.5 0 01-2.5 2.5h-15A2.5 2.5 0 012 19.5v-15zM6 6v3h3V6H6zm6 0v3h3V6h-3zm6 0v3h3V6h-3zM6 15v3h12v-3H6z" />
+        </svg>
+      </div>
+    `;
+  } else if (ticket.fault_type === 'DEAD_SENSOR' || ticket.is_dead_sensor) {
+    // Amber Wifi-Off / Warning / Wrench
+    iconHtml = `
+      <div class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 border-2 border-amber-500 text-amber-600 shadow-lg ${isSelected ? 'ring-amber-400' : 'ring-amber-300'} ${ringClass} transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M9.172 9.172a4 4 0 015.656 0M6.343 6.343a8 8 0 0111.314 0m-14.142 2.828a12 12 0 0116.97 0M12 12h.01" />
+        </svg>
+      </div>
+    `;
+  } else {
+    // Red Span Break / Broken Line
+    iconHtml = `
+      <div class="flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 border-2 border-rose-500 text-rose-600 shadow-lg ${isSelected ? 'ring-rose-400' : 'ring-rose-300'} ${ringClass} transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+        </svg>
+      </div>
+    `;
+  }
+
+  return L.divIcon({
+    html: iconHtml,
+    className: 'bg-transparent border-none',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+  });
+}
+
 
 function MarkerContent({ ticket }) {
   const isInferred = Boolean(ticket.topology_inferred);
@@ -313,6 +378,7 @@ export default function MapView({ tickets, selectedTicket, onSelectTicket, refre
               {markerValid ? (
                 <Marker
                   position={[markerLat, markerLng]}
+                  icon={getFaultIcon(ticket, isSelected)}
                   eventHandlers={{
                     click: () => onSelectTicket(ticket),
                   }}
